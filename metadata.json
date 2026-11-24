@@ -1,0 +1,6 @@
+{
+  "name": "Fischer vs Carlsen 3D Chess",
+  "description": "3D Grandmaster ELO Chess simulation with inverse kinematics, real-time clocks, and dramatic checkmate cutscenes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

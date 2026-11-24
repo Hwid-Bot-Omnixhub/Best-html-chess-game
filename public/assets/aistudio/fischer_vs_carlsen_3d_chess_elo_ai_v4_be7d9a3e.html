@@ -1,0 +1,2420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Fischer vs Carlsen · 3D Chess</title>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      touch-action: none;
+      background: #0d0e18;
+    }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(15, 16, 28, 0.94);
+      color: white;
+      padding: 12px 16px;
+      border-radius: 18px;
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,215,102,0.25);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+      z-index: 30;
+      pointer-events: none;
+      max-width: calc(100vw - 20px);
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    #info.hidden { transform: translateX(-120%); opacity: 0; pointer-events: none; }
+    #info h1 { margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 400; letter-spacing: 1px; color: #ffd966; }
+    .player-labels { display: flex; justify-content: space-between; font-size: 0.72rem; color: #ccc; margin-bottom: 4px; }
+    .player-labels span { font-weight: 600; }
+    .player-labels .fischer { color: #6ab0ff; }
+    .player-labels .carlsen { color: #d4a24e; }
+    .slider-container { pointer-events: auto; display: flex; flex-direction: column; gap: 6px; width: 220px; max-width: 100%; }
+    .slider-row { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+    .slider-row label { font-size: 0.75rem; font-weight: 500; color: #ccc; width: 48px; }
+    .slider-row input { flex: 1; cursor: ew-resize; accent-color: #ffd966; height: 24px; min-width: 0; touch-action: pan-x; pointer-events: auto; position: relative; z-index: 12; }
+    .elo-value { font-weight: 700; color: #ffd966; min-width: 40px; text-align: right; font-size: 0.8rem; }
+    #time-control-row { margin-top: 8px; display: flex; gap: 4px; pointer-events: auto; }
+    .time-btn { flex: 1; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #ccc; padding: 5px 4px; border-radius: 20px; font-size: 0.65rem; font-weight: 600; cursor: pointer; transition: 0.2s; touch-action: manipulation; }
+    .time-btn.active { background: #ffd966; color: #1e1e2a; border-color: #ffd966; }
+    .time-btn:active { transform: scale(0.95); }
+    #turn-indicator { margin-top: 8px; font-size: 0.85rem; background: rgba(255,255,255,0.08); padding: 6px 12px; border-radius: 30px; text-align: center; border-left: 4px solid #ffd966; pointer-events: none; }
+    #start-btn { margin-top: 8px; background: #ffd966; border: none; color: #1e1e2a; padding: 10px 16px; border-radius: 30px; font-weight: 700; cursor: pointer; font-size: 0.9rem; transition: 0.2s; letter-spacing: 0.5px; pointer-events: auto; width: 100%; text-transform: uppercase; touch-action: manipulation; }
+    #start-btn:active:not(:disabled) { transform: scale(0.97); }
+    #start-btn:disabled { background: #444; cursor: not-allowed; color: #888; }
+
+    #side-clocks { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); display: flex; flex-direction: column; gap: 12px; z-index: 10; pointer-events: none; transition: transform 0.3s ease, opacity 0.3s ease; }
+    #side-clocks.hidden { transform: translateX(120%) translateY(-50%); opacity: 0; }
+    .side-clock { background: rgba(15, 16, 28, 0.94); backdrop-filter: blur(12px); border-radius: 14px; padding: 10px 14px; border: 2px solid rgba(255,255,255,0.08); text-align: center; min-width: 100px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); transition: border-color 0.3s; }
+    .side-clock.active { border-color: #ffd966; background: rgba(25,26,45,0.98); }
+    .side-clock .label { font-size: 0.7rem; color: #aaa; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+    .side-clock .time { font-size: 1.5rem; font-weight: 700; font-family: 'Courier New', monospace; color: #fff; }
+    .side-clock.active .time { color: #ffd966; }
+    .side-clock .player-ind { font-size: 0.65rem; color: #ffd966; margin-top: 2px; height: 12px; }
+
+    #quality-indicator { position: absolute; top: 20px; right: 120px; z-index: 20; pointer-events: none; font-size: 2.2rem; font-weight: 700; opacity: 0; transition: opacity 0.4s; text-shadow: 0 2px 8px rgba(0,0,0,0.8); text-align: center; }
+    #quality-indicator.show { opacity: 1; }
+    #quality-indicator .qual-label { font-size: 0.9rem; display: block; text-align: center; margin-top: 4px; font-weight: 600; letter-spacing: 1px; }
+
+    #board-panel { position: absolute; bottom: 10px; right: 10px; background: rgba(15,16,28,0.94); backdrop-filter: blur(12px); border-radius: 16px; padding: 10px; color: white; border: 1px solid rgba(255,215,102,0.2); box-shadow: 0 12px 40px rgba(0,0,0,0.6); width: 210px; z-index: 10; pointer-events: auto; max-width: calc(100vw - 20px); transition: width 0.3s, transform 0.3s ease, opacity 0.3s ease; }
+    #board-panel.hidden { transform: translateY(120%); opacity: 0; pointer-events: none; }
+    #board-panel.expanded { width: min(92vw, 420px); }
+    #board-panel .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; gap: 6px; }
+    #board-panel h3 { margin: 0; font-weight: 400; color: #ffd966; font-size: 0.9rem; }
+    #toggle-board-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #ffd966; padding: 3px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; cursor: pointer; touch-action: manipulation; white-space: nowrap; }
+    #toggle-board-btn:active { transform: scale(0.95); }
+
+    #mini-board, #big-board { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); width: 100%; aspect-ratio: 1; border: 2px solid #ffd966; border-radius: 6px; overflow: hidden; position: relative; }
+    #big-board { display: none; }
+    #board-panel.expanded #mini-board { display: none; }
+    #board-panel.expanded #big-board { display: grid; }
+
+    .mini-square { display: flex; align-items: center; justify-content: center; font-size: 12px; user-select: none; line-height: 1; position: relative; }
+    .mini-square.light { background: #e8d9b8; }
+    .mini-square.dark { background: #8b6f4e; }
+    .mini-square .coord { position: absolute; font-size: 6px; color: rgba(0,0,0,0.4); font-weight: 700; }
+    .mini-square .coord.file { bottom: 1px; right: 1px; }
+    .mini-square .coord.rank { top: 1px; left: 1px; }
+    .mini-piece { line-height: 1; transition: none; }
+    .mini-piece.w { color: #fff; text-shadow: 0 0 2px #000, 0 1px 1px #000; }
+    .mini-piece.b { color: #111; text-shadow: 0 0 2px #fff, 0 1px 1px #999; }
+    .mini-badge { position: absolute; top: 0; right: 0; font-size: 8px; font-weight: 700; line-height: 1; padding: 1px 2px; border-radius: 3px; opacity: 1; transition: opacity 0.4s; }
+    .mini-badge.fade { opacity: 0; }
+    #mini-board .mini-piece { font-size: 11px; }
+    #big-board .mini-piece { font-size: 24px; }
+    #big-board .mini-badge { font-size: 10px; }
+    #big-board .mini-square .coord { font-size: 8px; }
+
+    #slide-overlay-2d { position: absolute; pointer-events: none; z-index: 5; font-size: 11px; line-height: 1; transition: none; display: flex; align-items: center; justify-content: center; width: 12.5%; height: 12.5%; opacity: 0; }
+    #slide-overlay-2d.active { opacity: 1; }
+    #slide-overlay-2d .mini-piece { font-size: 11px; }
+    #board-panel.expanded #slide-overlay-2d .mini-piece { font-size: 24px; }
+
+    .move-list { display: flex; flex-direction: column; gap: 2px; max-height: 60px; overflow-y: auto; font-size: 0.7rem; margin-top: 6px; }
+    #board-panel.expanded .move-list { max-height: 80px; font-size: 0.78rem; }
+    .move-item { display: flex; gap: 4px; padding: 2px 4px; border-radius: 4px; background: rgba(255,255,255,0.05); font-family: 'Courier New', monospace; align-items: center; }
+    .move-number { color: #888; width: 20px; }
+    .move-white { width: 45px; font-weight: 600; }
+    .move-black { width: 45px; font-weight: 600; }
+    .move-quality { font-size: 10px; width: 14px; }
+    .move-list::-webkit-scrollbar { width: 4px; }
+    .move-list::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 10px; }
+    .move-list::-webkit-scrollbar-thumb { background: #ffd966; border-radius: 10px; }
+
+    #note { position: absolute; bottom: 10px; left: 10px; color: rgba(255,255,255,0.3); font-size: 0.65rem; z-index: 10; pointer-events: none; }
+
+    #game-over-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.78); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+    #game-over-overlay.show { display: flex; }
+    #game-over-content { background: #12131f; padding: 30px 40px; border-radius: 20px; border: 2px solid #ffd966; text-align: center; color: white; max-width: 90vw; }
+    #game-over-content h2 { color: #ffd966; margin: 0 0 12px 0; font-size: 1.6rem; }
+    #game-over-content p { margin: 6px 0; color: #ccc; font-size: 1rem; }
+    #game-over-content button { margin-top: 16px; background: #ffd966; border: none; color: #1e1e2a; padding: 10px 28px; border-radius: 30px; font-weight: 700; cursor: pointer; font-size: 0.95rem; touch-action: manipulation; }
+
+    #sidebar-toggle { position: absolute; top: 10px; right: 10px; z-index: 50; background: rgba(15,16,28,0.94); backdrop-filter: blur(12px); border: 1px solid rgba(255,215,102,0.3); color: #ffd966; width: 44px; height: 44px; border-radius: 12px; cursor: pointer; font-size: 1.4rem; display: flex; align-items: center; justify-content: center; transition: 0.2s; touch-action: manipulation; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+    #sidebar-toggle:active { transform: scale(0.92); }
+    #sidebar-toggle .icon-open { display: block; }
+    #sidebar-toggle .icon-close { display: none; }
+    #sidebar-toggle.active .icon-open { display: none; }
+    #sidebar-toggle.active .icon-close { display: block; }
+
+    @media (max-width: 600px) {
+      #info { padding: 10px 12px; }
+      #info h1 { font-size: 0.95rem; }
+      .slider-container { width: 180px; }
+      #board-panel { width: 150px; padding: 8px; bottom: 10px; }
+      #board-panel.expanded { width: min(94vw, 380px); }
+      #board-panel h3 { font-size: 0.75rem; }
+      #mini-board .mini-piece { font-size: 9px; }
+      #big-board .mini-piece { font-size: 22px; }
+      #note { display: none; }
+      #side-clocks { right: 6px; gap: 8px; }
+      .side-clock { padding: 6px 10px; min-width: 80px; }
+      .side-clock .time { font-size: 1.1rem; }
+    }
+  </style>
+</head>
+<body>
+  <button id="sidebar-toggle" title="Toggle panels">
+    <span class="icon-open">☰</span>
+    <span class="icon-close">✕</span>
+  </button>
+
+  <div id="info">
+    <h1>♜ Fischer vs Carlsen ♞</h1>
+    <div class="player-labels">
+      <span class="fischer">🔵 Bobby Fischer</span>
+      <span class="carlsen">🟠 Magnus Carlsen</span>
+    </div>
+    <div class="slider-container">
+      <div class="slider-row">
+        <label>Fischer</label>
+        <input type="range" id="white-elo" min="400" max="2800" value="2785" step="5">
+        <span class="elo-value" id="white-elo-val">2785</span>
+      </div>
+      <div class="slider-row">
+        <label>Carlsen</label>
+        <input type="range" id="black-elo" min="400" max="2800" value="2839" step="5">
+        <span class="elo-value" id="black-elo-val">2839</span>
+      </div>
+      <div class="slider-row">
+        <label>Speed</label>
+        <input type="range" id="speed-slider" min="0.25" max="3" value="1" step="0.05">
+        <span class="elo-value" id="speed-val">1.0x</span>
+      </div>
+    </div>
+    <div id="time-control-row">
+      <button class="time-btn" data-min="1">Bullet<br>1 min</button>
+      <button class="time-btn" data-min="3">Blitz<br>3 min</button>
+      <button class="time-btn active" data-min="10">Rapid<br>10 min</button>
+    </div>
+    <div id="turn-indicator">Press Start to play</div>
+    <button id="start-btn">▶ Start Game</button>
+  </div>
+
+  <div id="side-clocks">
+    <div class="side-clock" id="sc-white">
+      <div class="label">Fischer</div>
+      <div class="time" id="side-time-white">10:00</div>
+      <div class="player-ind" id="white-ind">●</div>
+    </div>
+    <div class="side-clock" id="sc-black">
+      <div class="label">Carlsen</div>
+      <div class="time" id="side-time-black">10:00</div>
+      <div class="player-ind" id="black-ind"></div>
+    </div>
+  </div>
+
+  <div id="quality-indicator">
+    <span id="quality-symbol"></span>
+    <span class="qual-label" id="quality-label"></span>
+  </div>
+
+  <div id="board-panel">
+    <div class="panel-header">
+      <h3>📋 Board & Moves</h3>
+      <button id="toggle-board-btn">⛶ Full</button>
+    </div>
+    <div id="mini-board"></div>
+    <div id="big-board"></div>
+    <div id="slide-overlay-2d"><span class="mini-piece"></span></div>
+    <div class="move-list" id="move-list">
+      <div style="color: #888; text-align: center; padding: 4px; font-style: italic;">No moves yet</div>
+    </div>
+  </div>
+
+  <div id="note">Drag to rotate · Scroll to zoom</div>
+
+  <div id="game-over-overlay">
+    <div id="game-over-content">
+      <h2 id="game-over-title">Game Over</h2>
+      <p id="game-over-reason"></p>
+      <button id="play-again-btn">Play Again</button>
+    </div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.126.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.126.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // ---- Minimal Chess Engine ----
+    class Chess {
+      constructor(fen) {
+        this._moves = [];
+        this._board = Array(8).fill(null).map(() => Array(8).fill(null));
+        this._turn = 'w';
+        this._castling = { K: true, Q: true, k: true, q: true };
+        this._enPassant = null;
+        this._halfmoves = 0;
+        this._fullmoves = 1;
+        this._inCheck = false;
+        this._gameOver = false;
+        this._gameOverReason = '';
+        this._history = [];
+        this._initFromFen(fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+      }
+
+      _initFromFen(fen) {
+        const parts = fen.split(' ');
+        const rows = parts[0].split('/');
+        for (let r = 0; r < 8; r++) {
+          let c = 0;
+          for (const ch of rows[r]) {
+            if ('12345678'.includes(ch)) { c += parseInt(ch); }
+            else {
+              const color = ch === ch.toUpperCase() ? 'w' : 'b';
+              this._board[r][c] = { type: ch.toLowerCase(), color };
+              c++;
+            }
+          }
+        }
+        this._turn = parts[1] || 'w';
+        const cast = parts[2] || '-';
+        this._castling = { K: cast.includes('K'), Q: cast.includes('Q'), k: cast.includes('k'), q: cast.includes('q') };
+        this._enPassant = parts[3] !== '-' ? parts[3] : null;
+      }
+
+      board() { return this._board.map(row => row.map(cell => cell ? { ...cell } : null)); }
+      turn() { return this._turn; }
+      isGameOver() { return this._gameOver; }
+      isCheckmate() { return this._gameOverReason === 'checkmate'; }
+      isDraw() { return ['stalemate','insufficient','repetition','fifty'].includes(this._gameOverReason); }
+      isStalemate() { return this._gameOverReason === 'stalemate'; }
+      isInsufficientMaterial() { return this._gameOverReason === 'insufficient'; }
+      isThreefoldRepetition() { return this._gameOverReason === 'repetition'; }
+      history(opts) {
+        if (opts && opts.verbose) return this._history.map(h => ({...h}));
+        return this._history.map(h => h.san);
+      }
+      fen() {
+        let fen = '';
+        for (let r = 0; r < 8; r++) {
+          let empty = 0;
+          for (let c = 0; c < 8; c++) {
+            const p = this._board[r][c];
+            if (!p) { empty++; }
+            else {
+              if (empty) { fen += empty; empty = 0; }
+              const ch = p.type === 'n' ? (p.color === 'w' ? 'N' : 'n') :
+                         p.color === 'w' ? p.type.toUpperCase() : p.type;
+              fen += ch;
+            }
+          }
+          if (empty) fen += empty;
+          if (r < 7) fen += '/';
+        }
+        return fen + ` ${this._turn} - - ${this._halfmoves} ${this._fullmoves}`;
+      }
+
+      _inBounds(r, c) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
+      _findKing(color) {
+        for (let r = 0; r < 8; r++)
+          for (let c = 0; c < 8; c++)
+            if (this._board[r][c]?.type === 'k' && this._board[r][c]?.color === color)
+              return [r, c];
+        return null;
+      }
+
+      _isAttacked(r, c, byColor) {
+        const b = this._board;
+        const dirs = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+        for (const [dr, dc] of dirs) {
+          const isCardinal = dr === 0 || dc === 0;
+          const isDiag = Math.abs(dr) === Math.abs(dc);
+          for (let step = 1; step < 8; step++) {
+            const nr = r + dr * step, nc = c + dc * step;
+            if (!this._inBounds(nr, nc)) break;
+            const p = b[nr][nc];
+            if (p) {
+              if (p.color === byColor) {
+                if (isCardinal && (p.type === 'r' || p.type === 'q')) return true;
+                if (isDiag && (p.type === 'b' || p.type === 'q')) return true;
+                if (step === 1 && p.type === 'k') return true;
+              }
+              break;
+            }
+          }
+        }
+        const knightMoves = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+        for (const [dr, dc] of knightMoves) {
+          const nr = r + dr, nc = c + dc;
+          if (this._inBounds(nr, nc)) {
+            const p = b[nr][nc];
+            if (p && p.color === byColor && p.type === 'n') return true;
+          }
+        }
+        const pawnDir = byColor === 'w' ? 1 : -1;
+        for (const dc of [-1, 1]) {
+          const nr = r + pawnDir, nc = c + dc;
+          if (this._inBounds(nr, nc)) {
+            const p = b[nr][nc];
+            if (p && p.color === byColor && p.type === 'p') return true;
+          }
+        }
+        return false;
+      }
+
+      _wouldLeaveKingInCheck(fromR, fromC, toR, toC, promoteTo) {
+        const b = this._board;
+        const orig = b[toR][toC];
+        const piece = b[fromR][fromC];
+        b[toR][toC] = promoteTo ? { type: promoteTo, color: piece.color } : piece;
+        b[fromR][fromC] = null;
+        const kPos = this._findKing(piece.color);
+        const inCheck = kPos ? this._isAttacked(kPos[0], kPos[1], piece.color === 'w' ? 'b' : 'w') : false;
+        b[fromR][fromC] = piece;
+        b[toR][toC] = orig;
+        return inCheck;
+      }
+
+      moves({ verbose = false } = {}) {
+        const result = [];
+        const b = this._board;
+        const color = this._turn;
+        const opp = color === 'w' ? 'b' : 'w';
+        const files = 'abcdefgh';
+
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            const p = b[r][c];
+            if (!p || p.color !== color) continue;
+
+            const addMove = (toR, toC, flags = '', promoteTo = null) => {
+              if (this._wouldLeaveKingInCheck(r, c, toR, toC, promoteTo)) return;
+              const captured = b[toR][toC];
+              const from = files[c] + (8 - r);
+              const to = files[toC] + (8 - toR);
+              const pieceNames = { p: '', r: 'R', n: 'N', b: 'B', q: 'Q', k: 'K' };
+              let san = (p.type === 'p' ? (flags.includes('c') ? files[c] : '') : pieceNames[p.type]) +
+                        (flags.includes('c') || flags.includes('e') ? 'x' : '') + to +
+                        (promoteTo ? '=' + promoteTo.toUpperCase() : '');
+              result.push({ from, to, san, piece: p.type, color, flags: flags || 'n',
+                            captured: captured ? captured.type : undefined, promotion: promoteTo || undefined });
+            };
+
+            if (p.type === 'p') {
+              const dir = color === 'w' ? -1 : 1;
+              const startRow = color === 'w' ? 6 : 1;
+              const promRow = color === 'w' ? 0 : 7;
+              if (this._inBounds(r + dir, c) && !b[r + dir][c]) {
+                if (r + dir === promRow) { for (const pt of ['q','r','b','n']) addMove(r+dir,c,'',pt); }
+                else {
+                  addMove(r + dir, c);
+                  if (r === startRow && !b[r + 2*dir][c]) addMove(r + 2*dir, c, 'b');
+                }
+              }
+              for (const dc of [-1, 1]) {
+                const nr = r + dir, nc = c + dc;
+                if (this._inBounds(nr, nc)) {
+                  if (b[nr][nc] && b[nr][nc].color === opp) {
+                    if (nr === promRow) { for (const pt of ['q','r','b','n']) addMove(nr,nc,'c',pt); }
+                    else addMove(nr, nc, 'c');
+                  }
+                  const epFile = this._enPassant ? this._enPassant.charCodeAt(0) - 97 : -1;
+                  const epRow = color === 'w' ? 2 : 5;
+                  if (this._enPassant && nc === epFile && nr === epRow) addMove(nr, nc, 'e');
+                }
+              }
+            } else if (p.type === 'n') {
+              for (const [dr, dc] of [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]) {
+                const nr = r + dr, nc = c + dc;
+                if (this._inBounds(nr, nc) && b[nr][nc]?.color !== color)
+                  addMove(nr, nc, b[nr][nc] ? 'c' : 'n');
+              }
+            } else if (p.type === 'b' || p.type === 'r' || p.type === 'q') {
+              const dirs = p.type === 'b' ? [[1,1],[1,-1],[-1,1],[-1,-1]] :
+                           p.type === 'r' ? [[0,1],[0,-1],[1,0],[-1,0]] :
+                           [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+              for (const [dr, dc] of dirs) {
+                for (let step = 1; step < 8; step++) {
+                  const nr = r + dr * step, nc = c + dc * step;
+                  if (!this._inBounds(nr, nc)) break;
+                  if (b[nr][nc]) {
+                    if (b[nr][nc].color !== color) addMove(nr, nc, 'c');
+                    break;
+                  }
+                  addMove(nr, nc);
+                }
+              }
+            } else if (p.type === 'k') {
+              for (const [dr, dc] of [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]) {
+                const nr = r + dr, nc = c + dc;
+                if (this._inBounds(nr, nc) && b[nr][nc]?.color !== color)
+                  addMove(nr, nc, b[nr][nc] ? 'c' : 'n');
+              }
+              if (color === 'w' && r === 7 && c === 4) {
+                if (this._castling.K && !b[7][5] && !b[7][6] && !this._isAttacked(7,4,'b') && !this._isAttacked(7,5,'b') && !this._isAttacked(7,6,'b'))
+                  result.push({ from:'e1', to:'g1', san:'O-O', piece:'k', color, flags:'k' });
+                if (this._castling.Q && !b[7][3] && !b[7][2] && !b[7][1] && !this._isAttacked(7,4,'b') && !this._isAttacked(7,3,'b') && !this._isAttacked(7,2,'b'))
+                  result.push({ from:'e1', to:'c1', san:'O-O-O', piece:'k', color, flags:'q' });
+              }
+              if (color === 'b' && r === 0 && c === 4) {
+                if (this._castling.k && !b[0][5] && !b[0][6] && !this._isAttacked(0,4,'w') && !this._isAttacked(0,5,'w') && !this._isAttacked(0,6,'w'))
+                  result.push({ from:'e8', to:'g8', san:'O-O', piece:'k', color, flags:'k' });
+                if (this._castling.q && !b[0][3] && !b[0][2] && !b[0][1] && !this._isAttacked(0,4,'w') && !this._isAttacked(0,3,'w') && !this._isAttacked(0,2,'w'))
+                  result.push({ from:'e8', to:'c8', san:'O-O-O', piece:'k', color, flags:'q' });
+              }
+            }
+          }
+        }
+        return verbose ? result : result.map(m => m.san);
+      }
+
+      move(moveInput) {
+        const verbose = this.moves({ verbose: true });
+        let found;
+        if (typeof moveInput === 'string') {
+          found = verbose.find(m => m.san === moveInput || m.from + m.to === moveInput.replace(/[^a-h1-8]/g,''));
+        } else {
+          found = verbose.find(m => m.from === moveInput.from && m.to === moveInput.to &&
+            (!moveInput.promotion || m.promotion === moveInput.promotion));
+        }
+        if (!found) return null;
+
+        const b = this._board;
+        const files = 'abcdefgh';
+        const fromR = 8 - parseInt(found.from[1]);
+        const fromC = found.from.charCodeAt(0) - 97;
+        const toR = 8 - parseInt(found.to[1]);
+        const toC = found.to.charCodeAt(0) - 97;
+        const piece = b[fromR][fromC];
+
+        b[toR][toC] = found.promotion ? { type: found.promotion, color: piece.color } : piece;
+        b[fromR][fromC] = null;
+
+        if (found.flags.includes('e')) {
+          const epCaptureRow = piece.color === 'w' ? toR + 1 : toR - 1;
+          b[epCaptureRow][toC] = null;
+        }
+
+        if (found.flags === 'k') {
+          if (piece.color === 'w') { b[7][5] = b[7][7]; b[7][7] = null; }
+          else { b[0][5] = b[0][7]; b[0][7] = null; }
+        }
+        if (found.flags === 'q') {
+          if (piece.color === 'w') { b[7][3] = b[7][0]; b[7][0] = null; }
+          else { b[0][3] = b[0][0]; b[0][0] = null; }
+        }
+
+        if (piece.type === 'k') {
+          if (piece.color === 'w') { this._castling.K = false; this._castling.Q = false; }
+          else { this._castling.k = false; this._castling.q = false; }
+        }
+        if (piece.type === 'r') {
+          if (found.from === 'h1') this._castling.K = false;
+          if (found.from === 'a1') this._castling.Q = false;
+          if (found.from === 'h8') this._castling.k = false;
+          if (found.from === 'a8') this._castling.q = false;
+        }
+
+        if (piece.type === 'p' && Math.abs(toR - fromR) === 2) {
+          this._enPassant = files[toC] + (8 - ((fromR + toR) / 2));
+        } else { this._enPassant = null; }
+
+        this._turn = this._turn === 'w' ? 'b' : 'w';
+        const nextMoves = this.moves({ verbose: true });
+        const kPos = this._findKing(this._turn);
+        const inCheck = kPos && this._isAttacked(kPos[0], kPos[1], this._turn === 'w' ? 'b' : 'w');
+        if (nextMoves.length === 0) {
+          if (inCheck) { found.san += '#'; this._gameOver = true; this._gameOverReason = 'checkmate'; }
+          else { found.san += ''; this._gameOver = true; this._gameOverReason = 'stalemate'; }
+        } else if (inCheck) { found.san += '+'; }
+
+        this._history.push(found);
+        if (!found.flags.includes('c') && piece.type !== 'p') this._halfmoves++;
+        else this._halfmoves = 0;
+        if (this._turn === 'w') this._fullmoves++;
+
+        const pieces = [];
+        for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) if (b[r][c]) pieces.push(b[r][c]);
+        if (pieces.length <= 3 && !pieces.find(p => ['r','q','p'].includes(p.type))) {
+          this._gameOver = true; this._gameOverReason = 'insufficient';
+        }
+        if (this._halfmoves >= 100) { this._gameOver = true; this._gameOverReason = 'fifty'; }
+
+        return found;
+      }
+    }
+
+    // ---- ELO-AWARE COMPUTER PLAY ----
+    const PIECE_VALUES = { p: 100, n: 320, b: 335, r: 500, q: 900, k: 20000 };
+
+    function clonePosition(source) {
+      const copy = new Chess(source.fen());
+      copy._board = source._board.map(row => row.map(piece => piece ? { ...piece } : null));
+      copy._turn = source._turn;
+      copy._castling = { ...source._castling };
+      copy._enPassant = source._enPassant;
+      copy._halfmoves = source._halfmoves;
+      copy._fullmoves = source._fullmoves;
+      copy._gameOver = source._gameOver;
+      copy._gameOverReason = source._gameOverReason;
+      copy._history = source._history.slice();
+      return copy;
+    }
+
+    function evaluatePosition(position, perspective) {
+      const board = position._board;
+      let score = 0;
+      for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+        const piece = board[r][c];
+        if (!piece) continue;
+        const sign = piece.color === perspective ? 1 : -1;
+        let value = PIECE_VALUES[piece.type];
+        // Modest centralization and pawn-advance bonuses break equal-material ties.
+        const center = 3.5 - (Math.abs(3.5-r) + Math.abs(3.5-c)) / 2;
+        if (piece.type === 'n' || piece.type === 'b') value += center * 9;
+        if (piece.type === 'p') value += (piece.color === 'w' ? 6-r : r-1) * 5;
+        score += sign * value;
+      }
+      return score;
+    }
+
+    function negamax(position, depth, alpha, beta, colorSign, perspective) {
+      const moves = position.moves({ verbose: true });
+      if (moves.length === 0) {
+        const king = position._findKing(position._turn);
+        const checked = king && position._isAttacked(king[0], king[1], position._turn === 'w' ? 'b' : 'w');
+        return checked ? -100000 - depth : 0;
+      }
+      if (depth <= 0) return colorSign * evaluatePosition(position, perspective);
+      // Captures first improve alpha-beta pruning and make hanging pieces visible.
+      moves.sort((a,b) => ((b.flags.includes('c') || b.flags.includes('e')) ? 1 : 0) - ((a.flags.includes('c') || a.flags.includes('e')) ? 1 : 0));
+      let best = -Infinity;
+      for (const move of moves) {
+        const next = clonePosition(position);
+        next.move(move);
+        const value = -negamax(next, depth - 1, -beta, -alpha, -colorSign, perspective);
+        if (value > best) best = value;
+        if (value > alpha) alpha = value;
+        if (alpha >= beta) break;
+      }
+      return best;
+    }
+
+    function chooseEloMove(position, color) {
+      const moves = position.moves({ verbose: true });
+      if (moves.length <= 1) return moves[0] || null;
+      const eloInput = document.getElementById(color === 'w' ? 'white-elo' : 'black-elo');
+      const elo = Math.max(400, Math.min(2800, Number(eloInput.value) || 400));
+      const depth = elo >= 2300 ? 3 : elo >= 1500 ? 2 : 1;
+      const perspective = color;
+      const scored = [];
+      for (const move of moves) {
+        const next = clonePosition(position);
+        next.move(move);
+        const score = -negamax(next, depth - 1, -Infinity, Infinity, -1, perspective);
+        scored.push({ move, score });
+      }
+      scored.sort((a,b) => b.score - a.score);
+      // Elo controls error/noise: high-rated players select almost always from
+      // the top move; lower ratings sample a wider shortlist and sometimes miss tactics.
+      const spread = elo >= 2600 ? 0 : elo >= 2200 ? 18 : elo >= 1800 ? 55 : elo >= 1400 ? 130 : elo >= 900 ? 260 : 520;
+      const topScore = scored[0].score;
+      const pool = scored.filter(item => item.score >= topScore - spread);
+      if (pool.length === 1) return pool[0].move;
+      const weights = pool.map((item, index) => Math.exp(-index / (elo >= 2200 ? 1.3 : 3.2)));
+      const total = weights.reduce((a,b) => a+b, 0);
+      let pick = Math.random() * total;
+      for (let i = 0; i < pool.length; i++) {
+        pick -= weights[i];
+        if (pick <= 0) return pool[i].move;
+      }
+      return pool[0].move;
+    }
+
+    // ---- SCENE SETUP ----
+    const isMobile = window.innerWidth < 768;
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0d0e18);
+    scene.fog = new THREE.Fog(0x0d0e18, 45, 95);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 150);
+    // Angled 3/4 side view so both seated players, chairs, board, and side clock are clearly framed
+    camera.position.set(isMobile ? -19 : -15.5, isMobile ? 15 : 12.5, isMobile ? 19.5 : 16.5);
+    camera.lookAt(4.3, 1.3, 4);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.domElement.style.touchAction = 'none';
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.target.set(4.3, 1.3, 4);
+    controls.maxPolarAngle = Math.PI / 2.05;
+    controls.minDistance = 8;
+    controls.maxDistance = 52;
+    controls.enablePan = false;
+    controls.rotateSpeed = 0.65;
+    controls.zoomSpeed = 0.9;
+
+    // ---- LIGHTS ----
+    scene.add(new THREE.AmbientLight(0x4a4c6e, 1.7));
+    const mainLight = new THREE.DirectionalLight(0xfff8e7, 2.1);
+    mainLight.position.set(12, 24, 15);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.set(isMobile ? 512 : 1024, isMobile ? 512 : 1024);
+    const sd = 22;
+    mainLight.shadow.camera.left = -sd; mainLight.shadow.camera.right = sd;
+    mainLight.shadow.camera.top = sd; mainLight.shadow.camera.bottom = -sd;
+    mainLight.shadow.camera.near = 1; mainLight.shadow.camera.far = 65;
+    scene.add(mainLight);
+
+    const fillLight = new THREE.DirectionalLight(0x8090c0, 0.7);
+    fillLight.position.set(-14, 12, -8);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.DirectionalLight(0x2244aa, 0.4);
+    rimLight.position.set(0, 10, -20);
+    scene.add(rimLight);
+
+    // Overhead board light
+    const boardLight = new THREE.PointLight(0xffffff, 1.8, 25);
+    boardLight.position.set(4, 11, 4);
+    scene.add(boardLight);
+
+    // ---- CONSTANTS FOR TABLE, BOARD & FLOOR HEIGHTS ----
+    const FLOOR_Y = -3.4;
+    const TABLE_TOP_Y = 0;
+    const BOARD_SCALE = 0.72; // Proportionally sized board (5.76x5.76 units) on the table between the grandmasters
+    const BOARD_CENTER = { x: 4, z: 4 };
+
+    // ---- BOARD — centered at (4, 0, 4) on top of the table ----
+    const boardGroup = new THREE.Group();
+    boardGroup.position.set(BOARD_CENTER.x, TABLE_TOP_Y, BOARD_CENTER.z);
+    boardGroup.scale.set(BOARD_SCALE, BOARD_SCALE, BOARD_SCALE);
+    scene.add(boardGroup);
+
+    const baseMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(9.0, 0.35, 9.0),
+      new THREE.MeshStandardMaterial({ color: 0x1a1b2e, roughness: 0.5, metalness: 0.3 })
+    );
+    baseMesh.position.set(0, 0.175, 0);
+    baseMesh.receiveShadow = true; baseMesh.castShadow = true;
+    boardGroup.add(baseMesh);
+
+    const borderMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(8.6, 0.12, 8.6),
+      new THREE.MeshStandardMaterial({ color: 0xb8942a, roughness: 0.4, metalness: 0.5 })
+    );
+    borderMesh.position.set(0, 0.41, 0);
+    boardGroup.add(borderMesh);
+
+    const lightMat = new THREE.MeshStandardMaterial({ color: 0xf5f0e0, roughness: 0.3, metalness: 0.0 });
+    const darkMat  = new THREE.MeshStandardMaterial({ color: 0x2a1500, roughness: 0.7, metalness: 0.0 });
+
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const isLight = (row + col) % 2 === 0;
+        const sq = new THREE.Mesh(new THREE.BoxGeometry(0.97, 0.09, 0.97), isLight ? lightMat : darkMat);
+        sq.position.set((col - 3.5), 0.48, (row - 3.5));
+        sq.receiveShadow = true;
+        boardGroup.add(sq);
+      }
+    }
+
+    const PIECE_BASE_Y = 0.525 * BOARD_SCALE;
+    const PIECE_GRASP_HEIGHTS = {
+      p: 0.55 * BOARD_SCALE,
+      r: 0.80 * BOARD_SCALE,
+      n: 0.80 * BOARD_SCALE,
+      b: 0.88 * BOARD_SCALE,
+      q: 0.96 * BOARD_SCALE,
+      k: 1.05 * BOARD_SCALE
+    };
+
+    // ---- PIECES ----
+    const piecesGroup = new THREE.Group();
+    scene.add(piecesGroup);
+
+    const pieceSymbols = {
+      'wp': '♙', 'wn': '♘', 'wb': '♗', 'wr': '♖', 'wq': '♕', 'wk': '♔',
+      'bp': '♟', 'bn': '♞', 'bb': '♝', 'br': '♜', 'bq': '♛', 'bk': '♚'
+    };
+
+    function boardToWorld(r, c) {
+      return {
+        x: BOARD_CENTER.x + (c - 3.5) * BOARD_SCALE,
+        z: BOARD_CENTER.z + (r - 3.5) * BOARD_SCALE
+      };
+    }
+
+    function createPieceMeshGroup(type, color, r, c) {
+      const isWhite = color === 'w';
+      const mainColor = isWhite ? 0xf2f0ee : 0x242425;
+      const bodyMat = new THREE.MeshStandardMaterial({ color: mainColor, roughness: isWhite ? 0.35 : 0.5, metalness: isWhite ? 0.15 : 0.1 });
+      const accentMat = new THREE.MeshStandardMaterial({ color: isWhite ? 0xd4c89a : 0x444444, roughness: 0.4, metalness: 0.3 });
+      const goldMat = new THREE.MeshStandardMaterial({ color: isWhite ? 0xffd966 : 0xaa8800, roughness: 0.3, metalness: 0.7, emissive: new THREE.Color(isWhite ? 0x221100 : 0x110800) });
+
+      const group = new THREE.Group();
+      group.scale.set(BOARD_SCALE, BOARD_SCALE, BOARD_SCALE);
+
+      const baseCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 0.1, 16), bodyMat.clone());
+      baseCyl.position.y = 0.05; baseCyl.castShadow = true; group.add(baseCyl);
+      const baseTrim = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.03, 8, 20), accentMat.clone());
+      baseTrim.rotation.x = Math.PI/2; baseTrim.position.y = 0.09; group.add(baseTrim);
+
+      if (type === 'p') {
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.2, 0.28, 12), bodyMat.clone());
+        stem.position.y = 0.24; stem.castShadow = true; group.add(stem);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 10), bodyMat.clone());
+        head.position.y = 0.52; head.castShadow = true; group.add(head);
+
+      } else if (type === 'r') {
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 0.5, 12), bodyMat.clone());
+        stem.position.y = 0.35; stem.castShadow = true; group.add(stem);
+        const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.22, 0.1, 12), bodyMat.clone());
+        neck.position.y = 0.65; group.add(neck);
+        const top = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.21, 0.12, 12), bodyMat.clone());
+        top.position.y = 0.76; group.add(top);
+        for (let i = 0; i < 5; i++) {
+          if (i % 2 === 0) {
+            const batt = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.1), accentMat.clone());
+            const angle = (i / 5) * Math.PI * 2;
+            batt.position.set(Math.sin(angle) * 0.2, 0.9, Math.cos(angle) * 0.2);
+            group.add(batt);
+          }
+        }
+
+      } else if (type === 'n') {
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.32, 10), bodyMat.clone());
+        stem.position.y = 0.26; stem.castShadow = true; group.add(stem);
+        const neck2 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.38, 0.28), bodyMat.clone());
+        neck2.position.set(0.04, 0.6, 0); neck2.rotation.z = 0.18; neck2.castShadow = true; group.add(neck2);
+        const snout = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.26), bodyMat.clone());
+        snout.position.set(0.14, 0.75, 0.05); snout.castShadow = true; group.add(snout);
+        const ear = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.14, 6), bodyMat.clone());
+        ear.position.set(-0.02, 0.84, -0.04); ear.rotation.z = -0.2; group.add(ear);
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+        eye.position.set(0.14, 0.78, -0.11); group.add(eye);
+
+      } else if (type === 'b') {
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.24, 0.42, 12), bodyMat.clone());
+        stem.position.y = 0.31; stem.castShadow = true; group.add(stem);
+        const bulge = new THREE.Mesh(new THREE.SphereGeometry(0.19, 10, 10), bodyMat.clone());
+        bulge.position.y = 0.64; bulge.castShadow = true; group.add(bulge);
+        const neck2 = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.14, 0.12, 10), bodyMat.clone());
+        neck2.position.y = 0.78; group.add(neck2);
+        const tip = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), accentMat.clone());
+        tip.position.y = 0.88; group.add(tip);
+        const finial = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.1, 6), goldMat.clone());
+        finial.position.y = 0.98; group.add(finial);
+
+      } else if (type === 'q') {
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.28, 0.52, 12), bodyMat.clone());
+        stem.position.y = 0.36; stem.castShadow = true; group.add(stem);
+        const waist = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.19, 0.1, 12), bodyMat.clone());
+        waist.position.y = 0.67; group.add(waist);
+        const crown = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), bodyMat.clone());
+        crown.scale.y = 0.75; crown.position.y = 0.78; crown.castShadow = true; group.add(crown);
+        for (let i = 0; i < 5; i++) {
+          const angle = (i / 5) * Math.PI * 2;
+          const pt = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 6), goldMat.clone());
+          pt.position.set(Math.sin(angle) * 0.18, 0.95, Math.cos(angle) * 0.18);
+          group.add(pt);
+        }
+        const orb = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), goldMat.clone());
+        orb.position.y = 1.0; group.add(orb);
+
+      } else if (type === 'k') {
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.3, 0.56, 12), bodyMat.clone());
+        stem.position.y = 0.38; stem.castShadow = true; group.add(stem);
+        const waist = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.21, 0.1, 12), bodyMat.clone());
+        waist.position.y = 0.71; group.add(waist);
+        const head2 = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), bodyMat.clone());
+        head2.scale.y = 0.8; head2.position.y = 0.82; head2.castShadow = true; group.add(head2);
+        const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.3, 0.08), goldMat.clone());
+        crossV.position.y = 1.08; group.add(crossV);
+        const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.07), goldMat.clone());
+        crossH.position.y = 1.08; group.add(crossH);
+        const crossOrb = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), goldMat.clone());
+        crossOrb.position.y = 1.24; group.add(crossOrb);
+      }
+
+      const wp = boardToWorld(r, c);
+      group.position.set(wp.x, PIECE_BASE_Y, wp.z);
+      group.userData = { type, color, row: r, col: c };
+      return group;
+    }
+
+    let pieceMeshes = [];
+    const pieceMap = new Map();
+
+    function renderPiecesFromBoard() {
+      pieceMeshes.forEach(p => piecesGroup.remove(p));
+      pieceMeshes = [];
+      pieceMap.clear();
+      const board = chess.board();
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const piece = board[r][c];
+          if (piece) {
+            const pg = createPieceMeshGroup(piece.type, piece.color, r, c);
+            piecesGroup.add(pg);
+            pieceMeshes.push(pg);
+            pieceMap.set(`${r},${c}`, pg);
+          }
+        }
+      }
+    }
+
+    // ---- MOVE QUALITY ----
+    const qualityConfig = {
+      brilliant: { symbol: '!!', color: '#00bcd4', label: 'BRILLIANT', bg: 'rgba(0,188,212,0.95)' },
+      great:     { symbol: '!',  color: '#4caf50', label: 'GREAT',     bg: 'rgba(76,175,80,0.95)' },
+      best:      { symbol: '★',  color: '#8bc34a', label: 'BEST',      bg: 'rgba(139,195,74,0.95)' },
+      excellent: { symbol: '✓',  color: '#8bc34a', label: 'EXCELLENT', bg: 'rgba(139,195,74,0.85)' },
+      good:      { symbol: '·',  color: '#9e9e9e', label: 'GOOD',      bg: 'rgba(158,158,158,0.85)' },
+      inaccuracy:{ symbol: '?!', color: '#ff9800', label: 'INACCURACY',bg: 'rgba(255,152,0,0.95)' },
+      mistake:   { symbol: '?',  color: '#ff5722', label: 'MISTAKE',   bg: 'rgba(255,87,34,0.95)' },
+      blunder:   { symbol: '??', color: '#f44336', label: 'BLUNDER',   bg: 'rgba(244,67,54,0.95)' }
+    };
+
+    let moveQualities = [];
+    let qualityTimeout = null;
+
+    function evaluateMoveQuality(move) {
+      const wasCapture = move.flags.includes('c') || move.flags.includes('e');
+      const isCheck = move.san.includes('+') || move.san.includes('#');
+      const isMate = move.san.includes('#');
+      const isPromotion = !!move.promotion;
+      const r = Math.random();
+
+      if (isMate) return 'brilliant';
+      if (isPromotion && isCheck) return 'brilliant';
+      if (wasCapture && isCheck) return r < 0.5 ? 'brilliant' : 'great';
+      if (isCheck) return r < 0.3 ? 'great' : 'best';
+      if (wasCapture) return r < 0.4 ? 'excellent' : 'good';
+      if (r < 0.05) return 'blunder';
+      if (r < 0.12) return 'mistake';
+      if (r < 0.22) return 'inaccuracy';
+      if (r < 0.4) return 'good';
+      if (r < 0.65) return 'excellent';
+      if (r < 0.85) return 'best';
+      return 'great';
+    }
+
+    function showQualityIndicator(qualityKey) {
+      const q = qualityConfig[qualityKey];
+      if (!q) return;
+      const ind = document.getElementById('quality-indicator');
+      document.getElementById('quality-symbol').textContent = q.symbol;
+      document.getElementById('quality-symbol').style.color = q.color;
+      document.getElementById('quality-label').textContent = q.label;
+      document.getElementById('quality-label').style.color = q.color;
+      ind.classList.add('show');
+      if (qualityTimeout) clearTimeout(qualityTimeout);
+      qualityTimeout = setTimeout(() => ind.classList.remove('show'), 1200);
+    }
+
+    // ---- 2D BOARD HTML ----
+    function buildBoardHtml() {
+      const board = chess.board();
+      const history = chess.history({ verbose: true });
+      const lastMove = history.length > 0 ? history[history.length - 1] : null;
+      const lastQuality = moveQualities.length > 0 ? moveQualities[moveQualities.length - 1] : null;
+      const badgeSquare = lastMove && lastQuality ? lastMove.to : null;
+      const badgeConfig = lastQuality ? qualityConfig[lastQuality] : null;
+      const files = ['a','b','c','d','e','f','g','h'];
+
+      let html = '';
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const isLight = (r + c) % 2 === 0;
+          const piece = board[r][c];
+          const symbol = piece ? pieceSymbols[piece.color + piece.type] : '';
+          const cls = piece ? `mini-piece ${piece.color}` : '';
+          const squareName = files[c] + (8 - r);
+          let badgeHtml = '';
+          if (squareName === badgeSquare && badgeConfig) {
+            badgeHtml = `<span class="mini-badge" style="background:${badgeConfig.bg};color:#fff;">${badgeConfig.symbol}</span>`;
+          }
+          html += `<div class="mini-square ${isLight ? 'light' : 'dark'}"><span class="${cls}">${symbol}</span>${badgeHtml}</div>`;
+        }
+      }
+      return html;
+    }
+
+    function render2DBoards() {
+      const html = buildBoardHtml();
+      document.getElementById('mini-board').innerHTML = html;
+      document.getElementById('big-board').innerHTML = html;
+      setTimeout(() => { document.querySelectorAll('.mini-badge').forEach(b => b.classList.add('fade')); }, 1200);
+    }
+
+    // ---- 2D SLIDE OVERLAY ----
+    const slideOverlay2D = document.getElementById('slide-overlay-2d');
+
+    function start2DSlide(fromRow, fromCol, toRow, toCol, pieceType, pieceColor, duration) {
+      const panel = document.getElementById('board-panel');
+      const isExpanded = panel.classList.contains('expanded');
+      const container = isExpanded ? document.getElementById('big-board') : document.getElementById('mini-board');
+      const rect = container.getBoundingClientRect();
+      const cellW = rect.width / 8;
+      const cellH = rect.height / 8;
+      const startX = rect.left + fromCol * cellW;
+      const startY = rect.top + fromRow * cellH;
+      const destX = rect.left + toCol * cellW;
+      const destY = rect.top + toRow * cellH;
+
+      slideOverlay2D.style.left = startX + 'px';
+      slideOverlay2D.style.top = startY + 'px';
+      slideOverlay2D.style.width = cellW + 'px';
+      slideOverlay2D.style.height = cellH + 'px';
+      slideOverlay2D.querySelector('.mini-piece').textContent = pieceSymbols[pieceColor + pieceType];
+      slideOverlay2D.querySelector('.mini-piece').className = `mini-piece ${pieceColor}`;
+      slideOverlay2D.classList.add('active');
+
+      const startTime = performance.now();
+      function step(now) {
+        const p = Math.min((now - startTime) / duration, 1);
+        const e = p < 0.5 ? 2*p*p : 1 - Math.pow(-2*p+2, 2)/2;
+        slideOverlay2D.style.left = (startX + (destX - startX) * e) + 'px';
+        slideOverlay2D.style.top = (startY + (destY - startY) * e) + 'px';
+        if (p < 1) requestAnimationFrame(step);
+        else slideOverlay2D.classList.remove('active');
+      }
+      requestAnimationFrame(step);
+    }
+
+    // ---- 3D QUALITY BADGE ----
+    const quality3DGroup = new THREE.Group();
+    scene.add(quality3DGroup);
+    let quality3DSprite = null;
+
+    function show3DQualityBadge(toRow, toCol, qualityKey) {
+      const q = qualityConfig[qualityKey];
+      if (!q) return;
+      if (quality3DSprite) {
+        quality3DGroup.remove(quality3DSprite);
+        quality3DSprite.material.map.dispose();
+        quality3DSprite.material.dispose();
+        quality3DSprite = null;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = 256; canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      ctx.beginPath(); ctx.arc(128, 128, 110, 0, Math.PI*2);
+      ctx.fillStyle = q.color; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 10; ctx.stroke();
+      ctx.font = 'bold 110px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff'; ctx.fillText(q.symbol, 128, 140);
+      const tex = new THREE.CanvasTexture(canvas);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+      const wp = boardToWorld(toRow, toCol);
+      sprite.position.set(wp.x, 2.8, wp.z);
+      sprite.scale.set(1.2, 1.2, 1.2);
+      quality3DGroup.add(sprite);
+      quality3DSprite = sprite;
+
+      const start = performance.now();
+      function animBadge(now) {
+        if (!quality3DSprite) return;
+        const p = Math.min((now - start) / 1600, 1);
+        const scale = p < 0.2 ? 0.3 + (p/0.2)*1.0 : p < 0.8 ? 1.3 - (p-0.2)*0.1 : 1.24*(1-(p-0.8)/0.2);
+        quality3DSprite.scale.set(Math.max(0.01,scale), Math.max(0.01,scale), 1);
+        quality3DSprite.position.y = 2.8 + p * 0.7;
+        quality3DSprite.material.opacity = p > 0.7 ? 1-(p-0.7)/0.3 : 1;
+        if (p < 1) requestAnimationFrame(animBadge);
+        else {
+          if (quality3DSprite) { quality3DGroup.remove(quality3DSprite); quality3DSprite.material.map.dispose(); quality3DSprite.material.dispose(); quality3DSprite = null; }
+        }
+      }
+      requestAnimationFrame(animBadge);
+    }
+
+    // ---- CLOCK 3D MODEL — positioned to the side of the board on the table ----
+    const clockGroup = new THREE.Group();
+    scene.add(clockGroup);
+    // Board right edge is at x = 4 + 4.5 * 0.72 = 7.24. Place clock neatly beside the board at x = 8.35, z = 4.0
+    clockGroup.position.set(8.35, TABLE_TOP_Y, 4.0);
+
+    const clockBodyMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1.05, 0.62, 1.65),
+      new THREE.MeshStandardMaterial({ color: 0x1a1a2e, roughness: 0.4, metalness: 0.5 })
+    );
+    clockBodyMesh.position.y = 0.33; clockBodyMesh.castShadow = true;
+    clockGroup.add(clockBodyMesh);
+
+    const clockFaceMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.9, 0.05, 1.5),
+      new THREE.MeshStandardMaterial({ color: 0x0a0a1a, roughness: 0.2 })
+    );
+    clockFaceMesh.position.set(0, 0.66, 0);
+    clockGroup.add(clockFaceMesh);
+
+    // Digital display strips on the clock face
+    const dispMatW = new THREE.MeshStandardMaterial({ color: 0x6ab0ff, emissive: 0x225599, emissiveIntensity: 0.6 });
+    const dispMatB = new THREE.MeshStandardMaterial({ color: 0xffd966, emissive: 0x775500, emissiveIntensity: 0.6 });
+    const dispW = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.03, 0.30), dispMatW);
+    dispW.position.set(-0.08, 0.69, 0.38);
+    clockGroup.add(dispW);
+    const dispB = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.03, 0.30), dispMatB);
+    dispB.position.set(-0.08, 0.69, -0.38);
+    clockGroup.add(dispB);
+
+    // Clock rocker buttons: White button on +z side (Fischer's side), Black button on -z side (Carlsen's side)
+    const btnMat = () => new THREE.MeshStandardMaterial({ color: 0xffd966, roughness: 0.3, metalness: 0.5, emissive: new THREE.Color(0x332200) });
+    const btnW = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.14, 16), btnMat());
+    btnW.position.set(0, 0.76, 0.44); btnW.castShadow = true; clockGroup.add(btnW);
+    const btnB = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.14, 16), btnMat());
+    btnB.position.set(0, 0.76, -0.44); btnB.castShadow = true; clockGroup.add(btnB);
+
+    const pedMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.52, 0.68, 0.1, 14),
+      new THREE.MeshStandardMaterial({ color: 0x141524, roughness: 0.7 })
+    );
+    pedMesh.position.y = 0.05; clockGroup.add(pedMesh);
+
+    const clockButtons = { white: btnW, black: btnB };
+    const clockButtonBaseY = { white: 0.76, black: 0.76 };
+
+    // ---- 3D TOURNAMENT CHAIR BUILDER ----
+    function buildChairModel() {
+      const chair = new THREE.Group();
+      const leatherMat = new THREE.MeshStandardMaterial({ color: 0x1a1c26, roughness: 0.45, metalness: 0.1 });
+      const woodMat = new THREE.MeshStandardMaterial({ color: 0x3b2313, roughness: 0.55, metalness: 0.1 });
+      const chromeMat = new THREE.MeshStandardMaterial({ color: 0xb8bec8, roughness: 0.25, metalness: 0.85 });
+
+      const seatY = -1.62;
+      const floorY = FLOOR_Y; // -3.4
+      const legHeight = seatY - floorY; // 1.78
+
+      // Seat cushion
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.28, 2.0), leatherMat);
+      seat.position.set(0, seatY - 0.14, 0.15);
+      seat.castShadow = true;
+      seat.receiveShadow = true;
+      chair.add(seat);
+
+      // Seat wooden trim frame
+      const seatFrame = new THREE.Mesh(new THREE.BoxGeometry(2.22, 0.16, 2.12), woodMat);
+      seatFrame.position.set(0, seatY - 0.26, 0.15);
+      seatFrame.castShadow = true;
+      chair.add(seatFrame);
+
+      // Backrest support posts
+      for (const side of [-1, 1]) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 2.6, 10), woodMat);
+        post.position.set(side * 0.92, seatY + 1.15, -0.82);
+        post.rotation.x = -0.1;
+        post.castShadow = true;
+        chair.add(post);
+      }
+
+      // Padded backrest
+      const backrest = new THREE.Mesh(new THREE.BoxGeometry(1.95, 1.9, 0.26), leatherMat);
+      backrest.position.set(0, seatY + 1.35, -0.86);
+      backrest.rotation.x = -0.1;
+      backrest.castShadow = true;
+      chair.add(backrest);
+
+      // Top wooden crown rail on backrest
+      const topRail = new THREE.Mesh(new THREE.BoxGeometry(2.08, 0.22, 0.3), woodMat);
+      topRail.position.set(0, seatY + 2.34, -0.96);
+      topRail.rotation.x = -0.1;
+      topRail.castShadow = true;
+      chair.add(topRail);
+
+      // Armrests
+      for (const side of [-1, 1]) {
+        const armSupport = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.95, 8), chromeMat);
+        armSupport.position.set(side * 1.05, seatY + 0.42, 0.65);
+        armSupport.castShadow = true;
+        chair.add(armSupport);
+
+        const armPad = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 1.55), leatherMat);
+        armPad.position.set(side * 1.05, seatY + 0.92, 0.02);
+        armPad.castShadow = true;
+        chair.add(armPad);
+      }
+
+      // 4 Chair legs reaching down to FLOOR_Y (-3.4)
+      const legCoords = [
+        [-0.92, 0.95],
+        [ 0.92, 0.95],
+        [-0.92, -0.72],
+        [ 0.92, -0.72]
+      ];
+      for (const [lx, lz] of legCoords) {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.065, legHeight, 10), woodMat);
+        leg.position.set(lx, floorY + legHeight / 2, lz);
+        leg.castShadow = true;
+        chair.add(leg);
+
+        const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.08, 10), chromeMat);
+        foot.position.set(lx, floorY + 0.04, lz);
+        chair.add(foot);
+      }
+
+      // Cross stretchers between chair legs
+      const stretcherF = new THREE.Mesh(new THREE.BoxGeometry(1.84, 0.08, 0.08), woodMat);
+      stretcherF.position.set(0, floorY + 0.55, 0.95);
+      chair.add(stretcherF);
+      const stretcherB = new THREE.Mesh(new THREE.BoxGeometry(1.84, 0.08, 0.08), woodMat);
+      stretcherB.position.set(0, floorY + 0.55, -0.72);
+      chair.add(stretcherB);
+
+      return chair;
+    }
+
+    // ---- REALISTIC SEATED PLAYER MODELS ----
+    // Built consistently facing local +z (forward = +z, right = -x, left = +x)
+    // Scaled up (2.25x) so players realistically tower over the chessboard while seated at the table.
+    function buildPlayerModel(isWhite) {
+      const root = new THREE.Group();
+      const PLAYER_SCALE = 2.25;
+      root.scale.set(PLAYER_SCALE, PLAYER_SCALE, PLAYER_SCALE);
+
+      // Materials
+      const suitColor = isWhite ? 0x1a2d4a : 0x1c1c1c;
+      const shirtColor = isWhite ? 0xf5f5f5 : 0xfafafa;
+      const tieColor = isWhite ? 0x8b0000 : 0x1a3060;
+      const skinColor = isWhite ? 0xf0c8a0 : 0xf5d5b0;
+      const hairColor = isWhite ? 0x5a3a1a : 0xd4b060;
+
+      const suitMat = new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.5, metalness: 0.05 });
+      const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.6 });
+      const tieMat = new THREE.MeshStandardMaterial({ color: tieColor, roughness: 0.5 });
+      const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.5 });
+      const hairMat = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.9 });
+      const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1a1a2a });
+      const eyeWhiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+      const browMat = new THREE.MeshStandardMaterial({ color: hairColor });
+      const lipMat = new THREE.MeshStandardMaterial({ color: 0xc07060 });
+      const shoeBlack = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.3, metalness: 0.1 });
+      const pantsBlack = new THREE.MeshStandardMaterial({ color: 0x1a1a26, roughness: 0.8 });
+      const goldAccent = new THREE.MeshStandardMaterial({ color: 0xd4a832, roughness: 0.2, metalness: 0.9 });
+
+      const fwdZ = 1;
+
+      // ---- PELVIS / HIPS ----
+      const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.35, 0.32, 14), suitMat.clone());
+      hips.position.set(0, 0.68, 0);
+      hips.castShadow = true;
+      root.add(hips);
+
+      // ---- TORSO ----
+      const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.39, 0.33, 1.05, 14), suitMat.clone());
+      torso.position.set(0, 1.25, 0.02);
+      torso.rotation.x = 0.06;
+      torso.castShadow = true;
+      root.add(torso);
+
+      // Shirt front panel (+z)
+      const shirt = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.05), shirtMat.clone());
+      shirt.position.set(0, 1.4, 0.39 * fwdZ);
+      shirt.castShadow = true;
+      root.add(shirt);
+
+      // Tie (+z)
+      const tie = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.42, 0.04), tieMat.clone());
+      tie.position.set(0, 1.35, 0.42 * fwdZ);
+      root.add(tie);
+      const tieKnot = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.07, 0.05), tieMat.clone());
+      tieKnot.position.set(0, 1.59, 0.41 * fwdZ);
+      root.add(tieKnot);
+
+      // Suit lapels (+z)
+      const lapelL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.4, 0.04), suitMat.clone());
+      lapelL.position.set(0.14, 1.52, 0.40 * fwdZ); lapelL.rotation.z = -0.25; root.add(lapelL);
+      const lapelR = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.4, 0.04), suitMat.clone());
+      lapelR.position.set(-0.14, 1.52, 0.40 * fwdZ); lapelR.rotation.z = 0.25; root.add(lapelR);
+
+      // Suit buttons (+z)
+      for (let i = 0; i < 3; i++) {
+        const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.03, 8), goldAccent.clone());
+        btn.rotation.x = Math.PI/2;
+        btn.position.set(0, 1.18 + i*0.14, 0.40 * fwdZ);
+        root.add(btn);
+      }
+
+      // Pocket square
+      const pocket = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.07, 0.03), shirtMat.clone());
+      pocket.position.set(0.26, 1.58, 0.39 * fwdZ);
+      root.add(pocket);
+
+      // ---- HEAD (all facial features attached here facing +z) ----
+      const headGroup = new THREE.Group();
+      headGroup.position.set(0, 2.08, 0.06);
+      root.add(headGroup);
+
+      const skull = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 14), skinMat.clone());
+      skull.scale.y = 1.12; skull.castShadow = true; headGroup.add(skull);
+
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.22, 10), skinMat.clone());
+      neck.position.y = -0.28; headGroup.add(neck);
+
+      const jaw = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 10), skinMat.clone());
+      jaw.scale.set(0.9, 0.55, 0.85); jaw.position.set(0, -0.14, 0.02); headGroup.add(jaw);
+
+      for (const side of [-1, 1]) {
+        const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), skinMat.clone());
+        cheek.scale.set(0.7, 0.55, 0.6); cheek.position.set(side * 0.22, 0.02, 0.14 * fwdZ); headGroup.add(cheek);
+      }
+
+      for (const side of [-1, 1]) {
+        const socket = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), new THREE.MeshStandardMaterial({ color: skinColor - 0x101010, roughness: 0.5 }));
+        socket.scale.set(1.1, 0.8, 0.7); socket.position.set(side * 0.11, 0.07, 0.26 * fwdZ); headGroup.add(socket);
+
+        const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 8), eyeWhiteMat.clone());
+        eyeWhite.scale.set(1.0, 0.8, 0.7); eyeWhite.position.set(side * 0.11, 0.07, 0.27 * fwdZ); headGroup.add(eyeWhite);
+
+        const iris = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), new THREE.MeshStandardMaterial({ color: isWhite ? 0x2a4a7a : 0x4a7a2a, roughness: 0.1 }));
+        iris.position.set(side * 0.11, 0.07, 0.30 * fwdZ); headGroup.add(iris);
+
+        const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 6), eyeMat.clone());
+        pupil.position.set(side * 0.11, 0.07, 0.31 * fwdZ); headGroup.add(pupil);
+
+        const brow = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.025, 0.02), browMat.clone());
+        brow.position.set(side * 0.11, 0.17, 0.27 * fwdZ); brow.rotation.z = -side * 0.1; headGroup.add(brow);
+
+        const lid = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 4, 0, Math.PI*2, 0, Math.PI*0.5), skinMat.clone());
+        lid.position.set(side * 0.11, 0.08, 0.265 * fwdZ); lid.rotation.x = Math.PI; headGroup.add(lid);
+      }
+
+      const noseBridge = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.14, 0.06), skinMat.clone());
+      noseBridge.position.set(0, 0.02, 0.30 * fwdZ); headGroup.add(noseBridge);
+      const nostrilL = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), skinMat.clone());
+      nostrilL.scale.set(0.7, 0.6, 0.8); nostrilL.position.set(-0.055, -0.08, 0.30 * fwdZ); headGroup.add(nostrilL);
+      const nostrilR = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), skinMat.clone());
+      nostrilR.scale.set(0.7, 0.6, 0.8); nostrilR.position.set(0.055, -0.08, 0.30 * fwdZ); headGroup.add(nostrilR);
+      const noseTip = new THREE.Mesh(new THREE.SphereGeometry(0.065, 10, 8), skinMat.clone());
+      noseTip.scale.set(0.9, 0.7, 1.0); noseTip.position.set(0, -0.07, 0.31 * fwdZ); headGroup.add(noseTip);
+
+      const upperLip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.03, 0.03), lipMat.clone());
+      upperLip.position.set(0, -0.14, 0.29 * fwdZ); headGroup.add(upperLip);
+      const lowerLip = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.04, 0.035), lipMat.clone());
+      lowerLip.position.set(0, -0.19, 0.28 * fwdZ); headGroup.add(lowerLip);
+
+      for (const side of [-1, 1]) {
+        const ear = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), skinMat.clone());
+        ear.scale.set(0.5, 0.75, 0.6); ear.position.set(side * 0.3, 0.05, 0); headGroup.add(ear);
+        const innear = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), new THREE.MeshStandardMaterial({ color: skinColor - 0x080808 }));
+        innear.scale.set(0.3, 0.55, 0.3); innear.position.set(side * 0.3, 0.04, side * 0.01); headGroup.add(innear);
+      }
+
+      if (isWhite) {
+        const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.31, 14, 10, 0, Math.PI*2, 0, Math.PI*0.55), hairMat.clone());
+        hairCap.position.y = 0.05; headGroup.add(hairCap);
+        const sideHairL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.2, 0.22), hairMat.clone());
+        sideHairL.position.set(-0.29, 0.1, -0.02); headGroup.add(sideHairL);
+        const sideHairR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.2, 0.22), hairMat.clone());
+        sideHairR.position.set(0.29, 0.1, -0.02); headGroup.add(sideHairR);
+
+        const glassMat = new THREE.MeshStandardMaterial({ color: 0x2a1a0a, roughness: 0.2, metalness: 0.8 });
+        const bridge = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.1, 6), glassMat.clone());
+        bridge.rotation.z = Math.PI/2; bridge.position.set(0, 0.07, 0.30 * fwdZ); headGroup.add(bridge);
+        for (const side of [-1, 1]) {
+          const frame = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.018, 8, 16), glassMat.clone());
+          frame.position.set(side * 0.11, 0.07, 0.30 * fwdZ); headGroup.add(frame);
+          const lens = new THREE.Mesh(new THREE.CircleGeometry(0.072, 14), new THREE.MeshStandardMaterial({ color: 0x88aacc, transparent: true, opacity: 0.25, roughness: 0.1, side: THREE.DoubleSide }));
+          lens.position.set(side * 0.11, 0.07, 0.298 * fwdZ); headGroup.add(lens);
+        }
+      } else {
+        const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.315, 14, 12, 0, Math.PI*2, 0, Math.PI*0.58), hairMat.clone());
+        hairCap.position.y = 0.03; headGroup.add(hairCap);
+        const fringe = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.1, 0.1), hairMat.clone());
+        fringe.position.set(0, 0.3, 0.26 * fwdZ); headGroup.add(fringe);
+        const sideHairL = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.26, 0.26), hairMat.clone());
+        sideHairL.position.set(-0.3, 0.07, -0.02); headGroup.add(sideHairL);
+        const sideHairR = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.26, 0.26), hairMat.clone());
+        sideHairR.position.set(0.3, 0.07, -0.02); headGroup.add(sideHairR);
+      }
+
+      headGroup.rotation.x = 0.22;
+
+      // ---- NECK COLLAR ----
+      const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.14, 12), shirtMat.clone());
+      collar.position.set(0, 1.80, 0.04); root.add(collar);
+      const collarTop = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.12, 0.05, 12), shirtMat.clone());
+      collarTop.position.set(0, 1.88, 0.04); root.add(collarTop);
+
+      // ---- SHOULDERS ----
+      for (const side of [-1, 1]) {
+        const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.19, 10, 8), suitMat.clone());
+        shoulder.scale.set(0.8, 0.7, 0.9); shoulder.position.set(side * 0.44, 1.72, 0.04); shoulder.castShadow = true; root.add(shoulder);
+      }
+
+      // ---- ARMS WITH IK BONE LENGTHS & ARTICULATED FINGERS ----
+      // Upper arm length: 0.62, Forearm + palm grip center length: 0.72 (local units)
+      const UPPER_ARM_LEN = 0.74;
+      const FORE_ARM_LEN = 1.04;
+
+      const leftArmPivot = new THREE.Group();
+      leftArmPivot.position.set(0.52, 1.68, 0.04); root.add(leftArmPivot);
+
+      const lUpperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.13, UPPER_ARM_LEN, 10), suitMat.clone());
+      lUpperArm.position.y = -UPPER_ARM_LEN / 2; lUpperArm.castShadow = true; leftArmPivot.add(lUpperArm);
+      const lElbow = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 8), suitMat.clone());
+      lElbow.position.y = -UPPER_ARM_LEN; leftArmPivot.add(lElbow);
+
+      const leftForePivot = new THREE.Group();
+      leftForePivot.position.y = -UPPER_ARM_LEN; leftArmPivot.add(leftForePivot);
+      const lForeArm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.11, 0.92, 10), suitMat.clone());
+      lForeArm.position.y = -0.46; lForeArm.castShadow = true; leftForePivot.add(lForeArm);
+      const lWrist = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), skinMat.clone());
+      lWrist.position.y = -0.94; leftForePivot.add(lWrist);
+      const lPalm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.09, 0.18), skinMat.clone());
+      lPalm.position.y = -1.04; lPalm.castShadow = true; leftForePivot.add(lPalm);
+      const lFingers = [];
+      for (let f = 0; f < 4; f++) {
+        const finger = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, 0.09, 6), skinMat.clone());
+        finger.position.set(-0.045 + f*0.03, -1.13, 0.04); leftForePivot.add(finger);
+        lFingers.push(finger);
+      }
+      const lThumb = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.019, 0.07, 6), skinMat.clone());
+      lThumb.rotation.z = -0.7; lThumb.position.set(0.1, -1.07, 0.03); leftForePivot.add(lThumb);
+
+      const rightArmPivot = new THREE.Group();
+      rightArmPivot.position.set(-0.52, 1.68, 0.04); root.add(rightArmPivot);
+      const rUpperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.13, UPPER_ARM_LEN, 10), suitMat.clone());
+      rUpperArm.position.y = -UPPER_ARM_LEN / 2; rUpperArm.castShadow = true; rightArmPivot.add(rUpperArm);
+      const rElbow = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 8), suitMat.clone());
+      rElbow.position.y = -UPPER_ARM_LEN; rightArmPivot.add(rElbow);
+
+      const rightForePivot = new THREE.Group();
+      rightForePivot.position.y = -UPPER_ARM_LEN; rightArmPivot.add(rightForePivot);
+      const rForeArm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.11, 0.92, 10), suitMat.clone());
+      rForeArm.position.y = -0.46; rForeArm.castShadow = true; rightForePivot.add(rForeArm);
+      const rWrist = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), skinMat.clone());
+      rWrist.position.y = -0.94; rightForePivot.add(rWrist);
+      const rPalm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.09, 0.18), skinMat.clone());
+      rPalm.position.y = -1.04; rPalm.castShadow = true; rightForePivot.add(rPalm);
+      const rFingers = [];
+      for (let f = 0; f < 4; f++) {
+        const finger = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, 0.09, 6), skinMat.clone());
+        finger.position.set(-0.045 + f*0.03, -1.13, 0.04); rightForePivot.add(finger);
+        rFingers.push(finger);
+      }
+      const rThumb = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.019, 0.07, 6), skinMat.clone());
+      rThumb.rotation.z = 0.7; rThumb.position.set(-0.1, -1.07, 0.03); rightForePivot.add(rThumb);
+
+      // ---- SEATED LEGS ----
+      for (const side of [-1, 1]) {
+        const hipJoint = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), pantsBlack.clone());
+        hipJoint.position.set(side * 0.22, 0.62, 0.08);
+        root.add(hipJoint);
+
+        const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.155, 0.14, 0.66, 10), pantsBlack.clone());
+        thigh.rotation.x = Math.PI / 2;
+        thigh.position.set(side * 0.22, 0.62, 0.41);
+        thigh.castShadow = true;
+        root.add(thigh);
+
+        const knee = new THREE.Mesh(new THREE.SphereGeometry(0.135, 8, 8), pantsBlack.clone());
+        knee.position.set(side * 0.22, 0.62, 0.74);
+        knee.castShadow = true;
+        root.add(knee);
+
+        const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.125, 0.10, 0.56, 10), pantsBlack.clone());
+        shin.position.set(side * 0.22, 0.34, 0.74);
+        shin.castShadow = true;
+        root.add(shin);
+
+        const shoeMain = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.10, 0.36), shoeBlack.clone());
+        shoeMain.position.set(side * 0.22, 0.05, 0.82);
+        shoeMain.castShadow = true;
+        root.add(shoeMain);
+
+        const shoeToe = new THREE.Mesh(new THREE.SphereGeometry(0.105, 8, 6), shoeBlack.clone());
+        shoeToe.scale.set(0.95, 0.5, 1.2);
+        shoeToe.position.set(side * 0.22, 0.06, 0.98);
+        root.add(shoeToe);
+      }
+
+      // Position & Orientation:
+      // White (Bobby Fischer) sits at z = 10.6, rotated Math.PI so local +z points toward -z (facing the board & Carlsen).
+      // Black (Magnus Carlsen) sits at z = -2.6, rotated 0 so local +z points toward +z (facing the board & Fischer).
+      const SEAT_WORLD_Y = -3.02;
+      if (isWhite) {
+        root.position.set(4, SEAT_WORLD_Y, 10.0);
+        root.rotation.y = Math.PI;
+      } else {
+        root.position.set(4, SEAT_WORLD_Y, -2.0);
+        root.rotation.y = 0;
+      }
+
+      root.userData.seatedPosition = root.position.clone();
+      return {
+        root,
+        torso,
+        leftArmPivot,
+        rightArmPivot,
+        leftForePivot,
+        rightForePivot,
+        lFingers,
+        rFingers,
+        headGroup,
+        upperArmLen: UPPER_ARM_LEN,
+        foreArmLen: FORE_ARM_LEN,
+        seatedPosition: root.position.clone(),
+        reachOffset: new THREE.Vector3()
+      };
+    }
+
+    const whitePlayer = buildPlayerModel(true);
+    const blackPlayer = buildPlayerModel(false);
+    scene.add(whitePlayer.root);
+    scene.add(blackPlayer.root);
+
+    // Add 3D tournament chairs positioned underneath each player
+    const whiteChair = buildChairModel();
+    whiteChair.position.set(4, 0, 10.0);
+    whiteChair.rotation.y = Math.PI;
+    scene.add(whiteChair);
+
+    const blackChair = buildChairModel();
+    blackChair.position.set(4, 0, -2.0);
+    blackChair.rotation.y = 0;
+    scene.add(blackChair);
+
+    // ---- 2-BONE ANALYTICAL INVERSE KINEMATICS (IK) SOLVER ----
+    // Solves shoulder and elbow rotations so the player's palm/hand lands accurately on `worldTargetPos`
+    const _ikLocalTarget = new THREE.Vector3();
+    const _ikToTarget = new THREE.Vector3();
+    const _ikPoleDir = new THREE.Vector3();
+    const _ikSideAxis = new THREE.Vector3();
+    const _ikBendDir = new THREE.Vector3();
+    const _ikElbowPos = new THREE.Vector3();
+    const _ikUpperDir = new THREE.Vector3();
+    const _ikForeDir = new THREE.Vector3();
+    const _ikDownVec = new THREE.Vector3(0, -1, 0);
+    const _ikQuatUpper = new THREE.Quaternion();
+    const _ikQuatUpperInv = new THREE.Quaternion();
+    const _ikQuatFore = new THREE.Quaternion();
+
+    function reachHandToTarget(player, isRightArm, worldTargetPos, blend = 1.0, gripAmount = 0.0) {
+      player.root.updateMatrixWorld(true);
+      const shoulderPivot = isRightArm ? player.rightArmPivot : player.leftArmPivot;
+      const forePivot = isRightArm ? player.rightForePivot : player.leftForePivot;
+      const fingers = isRightArm ? player.rFingers : player.lFingers;
+
+      // Convert world target into player root's local coordinate frame
+      _ikLocalTarget.copy(worldTargetPos);
+      player.root.worldToLocal(_ikLocalTarget);
+
+      const shoulderOrigin = shoulderPivot.position;
+      _ikToTarget.subVectors(_ikLocalTarget, shoulderOrigin);
+
+      const L1 = player.upperArmLen;
+      const L2 = player.foreArmLen;
+      const maxReach = (L1 + L2) * 0.985;
+      const minReach = Math.abs(L1 - L2) + 0.08;
+      let d = _ikToTarget.length();
+      if (d < 0.0001) return;
+
+      const dir = _ikToTarget.clone().divideScalar(d);
+      d = THREE.MathUtils.clamp(d, minReach, maxReach);
+      const clampedTarget = shoulderOrigin.clone().addScaledVector(dir, d);
+
+      // Pole vector points outward and slightly downward/backward so elbows bend naturally like a human chess player
+      const outSign = isRightArm ? -1 : 1;
+      _ikPoleDir.set(outSign * 0.85, -0.45, -0.35).normalize();
+
+      // Project pole direction perpendicular to shoulder->target axis
+      _ikSideAxis.crossVectors(dir, _ikPoleDir);
+      if (_ikSideAxis.lengthSq() < 0.0001) {
+        _ikSideAxis.set(0, 1, 0);
+      } else {
+        _ikSideAxis.normalize();
+      }
+      _ikBendDir.crossVectors(_ikSideAxis, dir).normalize();
+
+      // Law of cosines for elbow triangle
+      const cosAlpha = THREE.MathUtils.clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1);
+      const sinAlpha = Math.sqrt(Math.max(0, 1 - cosAlpha * cosAlpha));
+
+      // World/local elbow position
+      _ikElbowPos.copy(shoulderOrigin)
+        .addScaledVector(dir, L1 * cosAlpha)
+        .addScaledVector(_ikBendDir, L1 * sinAlpha);
+
+      // Upper arm orientation: local -Y aligns along (elbow - shoulder)
+      _ikUpperDir.subVectors(_ikElbowPos, shoulderOrigin).normalize();
+      _ikQuatUpper.setFromUnitVectors(_ikDownVec, _ikUpperDir);
+
+      // Forearm orientation: local -Y aligns along (clampedTarget - elbow) inside upper arm's frame
+      _ikForeDir.subVectors(clampedTarget, _ikElbowPos).normalize();
+      _ikQuatUpperInv.copy(_ikQuatUpper).invert();
+      _ikForeDir.applyQuaternion(_ikQuatUpperInv).normalize();
+      _ikQuatFore.setFromUnitVectors(_ikDownVec, _ikForeDir);
+
+      // Smoothly slerp into the target IK pose
+      shoulderPivot.quaternion.slerp(_ikQuatUpper, blend);
+      forePivot.quaternion.slerp(_ikQuatFore, blend);
+
+      // Subtle finger curl when grasping a piece
+      const targetFingerRotX = -0.15 - gripAmount * 0.55;
+      for (let i = 0; i < fingers.length; i++) {
+        fingers[i].rotation.x += (targetFingerRotX - fingers[i].rotation.x) * blend;
+      }
+    }
+
+    // Move the player toward a distant target instead of allowing IK to clamp
+    // the hand short of the piece. The torso rises when the target is far away.
+    const _reachShoulderWorld = new THREE.Vector3();
+    const _reachDeltaWorld = new THREE.Vector3();
+    function movePlayerIntoReach(player, target, blend = 0.16) {
+      player.root.updateMatrixWorld(true);
+      const arm = player.rightArmPivot;
+      arm.getWorldPosition(_reachShoulderWorld);
+      _reachDeltaWorld.subVectors(target, _reachShoulderWorld);
+      const horizontalDistance = Math.hypot(_reachDeltaWorld.x, _reachDeltaWorld.z);
+      const safeReach = (player.upperArmLen + player.foreArmLen) * 2.25 * 0.88;
+      const excess = Math.max(0, horizontalDistance - safeReach);
+      const base = player.seatedPosition;
+      const len = Math.max(0.001, horizontalDistance);
+      const stepX = (_reachDeltaWorld.x / len) * excess;
+      const stepZ = (_reachDeltaWorld.z / len) * excess;
+      const stand = THREE.MathUtils.clamp(excess / 2.2, 0, 1);
+      const desiredX = base.x + stepX;
+      const desiredZ = base.z + stepZ;
+      const desiredY = base.y + 0.72 * stand;
+      player.root.position.x += (desiredX - player.root.position.x) * blend;
+      player.root.position.z += (desiredZ - player.root.position.z) * blend;
+      player.root.position.y += (desiredY - player.root.position.y) * blend;
+      player.torso.rotation.x += ((0.08 + 0.16 * stand) - player.torso.rotation.x) * blend;
+    }
+
+    // Smoothly orient player's head toward a world point (piece or clock)
+    const _headLocalLook = new THREE.Vector3();
+    function aimHeadAtWorld(player, worldPos, blend = 0.14) {
+      player.root.updateMatrixWorld(true);
+      _headLocalLook.copy(worldPos);
+      player.root.worldToLocal(_headLocalLook);
+      const dx = _headLocalLook.x - player.headGroup.position.x;
+      const dy = _headLocalLook.y - player.headGroup.position.y;
+      const dz = Math.max(0.25, _headLocalLook.z - player.headGroup.position.z);
+
+      const targetYaw = THREE.MathUtils.clamp(Math.atan2(dx, dz) * 0.65, -0.45, 0.45);
+      const targetPitch = THREE.MathUtils.clamp(-Math.atan2(dy, dz) * 0.55, 0.08, 0.52);
+
+      player.headGroup.rotation.y += (targetYaw - player.headGroup.rotation.y) * blend;
+      player.headGroup.rotation.x += (targetPitch - player.headGroup.rotation.x) * blend;
+      player.headGroup.rotation.z += (0 - player.headGroup.rotation.z) * blend;
+    }
+
+    // Smoothly relax arms back to natural seated resting pose
+    const _restQuatLShoulder = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.22, 0, 0.14));
+    const _restQuatRShoulder = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.22, 0, -0.14));
+    const _restQuatFore = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.55, 0, 0));
+
+    function smoothReturnToRest(player, blend = 0.14) {
+      player.leftArmPivot.quaternion.slerp(_restQuatLShoulder, blend);
+      player.leftForePivot.quaternion.slerp(_restQuatFore, blend);
+      player.rightArmPivot.quaternion.slerp(_restQuatRShoulder, blend);
+      player.rightForePivot.quaternion.slerp(_restQuatFore, blend);
+      player.torso.rotation.x += (0.06 - player.torso.rotation.x) * blend;
+      for (const f of player.lFingers) f.rotation.x += (0 - f.rotation.x) * blend;
+      for (const f of player.rFingers) f.rotation.x += (0 - f.rotation.x) * blend;
+    }
+
+    // ---- SLIDING PIECE GROUP ----
+    const slidePieceGroup = new THREE.Group();
+    scene.add(slidePieceGroup);
+    const capturedPiecesGroup = new THREE.Group();
+    scene.add(capturedPiecesGroup);
+    const captureTraySlots = [];
+    let captureAnimation = null;
+    let slidePieceMesh = null;
+    let secondarySlideMesh = null; // For castling rook smooth movement
+
+    // ---- SPEED CONTROL ----
+    let gameSpeed = 1.0;
+    document.getElementById('speed-slider').addEventListener('input', e => {
+      gameSpeed = parseFloat(e.target.value);
+      document.getElementById('speed-val').textContent = gameSpeed.toFixed(2).replace(/0+$/,'').replace(/\.$/,'') + 'x';
+    });
+
+    // ---- ANIMATION STATE ----
+    let gameStarted = false;
+    let animState = 'idle';
+    let animTimer = 0;
+    let moveAnim = null;
+    let clockPressAnim = null;
+    let frustrationAnim = null;
+
+    function resetArmPoses() {
+      whitePlayer.leftArmPivot.rotation.set(-0.22, 0, 0.14);
+      whitePlayer.leftForePivot.rotation.set(-0.55, 0, 0);
+      whitePlayer.rightArmPivot.rotation.set(-0.22, 0, -0.14);
+      whitePlayer.rightForePivot.rotation.set(-0.55, 0, 0);
+      whitePlayer.torso.rotation.set(0.06, 0, 0);
+      whitePlayer.headGroup.rotation.set(0.22, 0, 0);
+      for (const f of whitePlayer.lFingers) f.rotation.x = 0;
+      for (const f of whitePlayer.rFingers) f.rotation.x = 0;
+
+      blackPlayer.leftArmPivot.rotation.set(-0.22, 0, 0.14);
+      blackPlayer.leftForePivot.rotation.set(-0.55, 0, 0);
+      blackPlayer.rightArmPivot.rotation.set(-0.22, 0, -0.14);
+      blackPlayer.rightForePivot.rotation.set(-0.55, 0, 0);
+      blackPlayer.torso.rotation.set(0.06, 0, 0);
+      blackPlayer.headGroup.rotation.set(0.22, 0, 0);
+      for (const f of blackPlayer.lFingers) f.rotation.x = 0;
+      for (const f of blackPlayer.rFingers) f.rotation.x = 0;
+
+      clockButtons.white.position.y = clockButtonBaseY.white;
+      clockButtons.black.position.y = clockButtonBaseY.black;
+    }
+    resetArmPoses();
+
+    const _thinkQuatLShoulder = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.95, 0, -0.25));
+    const _thinkQuatLFore = new THREE.Quaternion().setFromEuler(new THREE.Euler(-1.35, 0, 0));
+    const _thinkQuatRShoulder = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.95, 0, 0.25));
+    const _thinkQuatRFore = new THREE.Quaternion().setFromEuler(new THREE.Euler(-1.35, 0, 0));
+
+    function applyThinkPoseSmooth(player, useLeftArm, blend = 0.1) {
+      if (useLeftArm) {
+        player.leftArmPivot.quaternion.slerp(_thinkQuatLShoulder, blend);
+        player.leftForePivot.quaternion.slerp(_thinkQuatLFore, blend);
+        player.rightArmPivot.quaternion.slerp(_restQuatRShoulder, blend);
+        player.rightForePivot.quaternion.slerp(_restQuatFore, blend);
+      } else {
+        player.rightArmPivot.quaternion.slerp(_thinkQuatRShoulder, blend);
+        player.rightForePivot.quaternion.slerp(_thinkQuatRFore, blend);
+        player.leftArmPivot.quaternion.slerp(_restQuatLShoulder, blend);
+        player.leftForePivot.quaternion.slerp(_restQuatFore, blend);
+      }
+    }
+
+    // ---- OPENING HANDSHAKE ----
+    let handshakeAnim = null;
+    const handshakePoint = new THREE.Vector3(4, 2.15, 4);
+    function beginHandshake() {
+      handshakeAnim = { elapsed: 0, duration: 4.2 };
+      whitePlayer.root.position.copy(whitePlayer.seatedPosition);
+      blackPlayer.root.position.copy(blackPlayer.seatedPosition);
+      whitePlayer.handshakeStretch = true;
+      blackPlayer.handshakeStretch = true;
+      whitePlayer.leftForePivot.scale.y = 1;
+      blackPlayer.rightForePivot.scale.y = 1;
+      animState = 'handshake';
+      document.getElementById('turn-indicator').textContent = 'Players shaking hands...';
+    }
+    function updateHandshake(dt) {
+      if (!handshakeAnim) return;
+      handshakeAnim.elapsed += dt * gameSpeed;
+      const t = Math.min(handshakeAnim.elapsed / handshakeAnim.duration, 1);
+      const approach = THREE.MathUtils.smoothstep(t, 0.05, 0.42);
+      const settle = 1 - THREE.MathUtils.smoothstep(t, 0.78, 1.0);
+      const bob = t > 0.42 && t < 0.78 ? Math.sin((t - 0.42) / 0.36 * Math.PI * 4) * 0.045 : 0;
+      // Rise from the chair and step toward the board rather than stretching
+      // the arm unnaturally across the tabletop.
+      whitePlayer.root.position.y = whitePlayer.seatedPosition.y + 1.10 * approach * settle;
+      blackPlayer.root.position.y = blackPlayer.seatedPosition.y + 1.10 * approach * settle;
+      whitePlayer.root.position.z = whitePlayer.seatedPosition.z - 2.85 * approach * settle;
+      blackPlayer.root.position.z = blackPlayer.seatedPosition.z + 2.85 * approach * settle;
+      const target = handshakePoint.clone();
+      target.y += bob;
+      // Both players' palms are driven to the exact same target, guaranteeing visible contact.
+      reachHandToTarget(whitePlayer, false, target, 0.22 + approach * 0.78, 0.35);
+      reachHandToTarget(blackPlayer, true, target, 0.22 + approach * 0.78, 0.35);
+      aimHeadAtWorld(whitePlayer, target, 0.12);
+      aimHeadAtWorld(blackPlayer, target, 0.12);
+      whitePlayer.torso.rotation.x += (0.13 - whitePlayer.torso.rotation.x) * 0.12;
+      blackPlayer.torso.rotation.x += (0.13 - blackPlayer.torso.rotation.x) * 0.12;
+      if (t >= 1) {
+        handshakeAnim = null;
+        whitePlayer.root.position.copy(whitePlayer.seatedPosition);
+        blackPlayer.root.position.copy(blackPlayer.seatedPosition);
+        whitePlayer.handshakeStretch = false;
+        blackPlayer.handshakeStretch = false;
+        whitePlayer.leftForePivot.scale.y = 1;
+        blackPlayer.rightForePivot.scale.y = 1;
+        smoothReturnToRest(whitePlayer, 1);
+        smoothReturnToRest(blackPlayer, 1);
+        animState = 'white-think';
+        animTimer = (1.8 + Math.random() * 1.8) / gameSpeed;
+        document.getElementById('turn-indicator').textContent = "Fischer's turn";
+      }
+    }
+
+    // ---- FRUSTRATION ANIMATION ----
+    function triggerFrustrationAnimation(player) {
+      frustrationAnim = {
+        player,
+        phase: 0,
+        timer: 0,
+        totalDuration: 2.8
+      };
+      animState = 'frustration';
+    }
+
+    function updateFrustrationAnim(dt) {
+      if (!frustrationAnim) { animState = 'idle'; return; }
+      const fa = frustrationAnim;
+      fa.timer += dt * gameSpeed;
+      const player = fa.player;
+      const t = fa.timer * 6;
+
+      if (fa.timer < 0.4) {
+        const e = fa.timer / 0.4;
+        player.leftArmPivot.rotation.set(-0.22 - 1.15 * e, 0, 0.14 - 0.45 * e);
+        player.leftForePivot.rotation.set(-0.55 - 0.95 * e, 0, 0);
+        player.rightArmPivot.rotation.set(-0.22 - 1.15 * e, 0, -0.14 + 0.45 * e);
+        player.rightForePivot.rotation.set(-0.55 - 0.95 * e, 0, 0);
+        player.headGroup.rotation.y = 0;
+      } else if (fa.timer < 1.6) {
+        const shake = Math.sin(t * 2.5) * 0.18;
+        const nod = Math.abs(Math.sin(t * 1.5)) * 0.1;
+        player.headGroup.rotation.y = shake;
+        player.headGroup.rotation.x = 0.22 - nod;
+        player.headGroup.rotation.z = shake * 0.3;
+        player.leftArmPivot.rotation.x = -1.37 + Math.sin(t * 2.5) * 0.08;
+        player.rightArmPivot.rotation.x = -1.37 + Math.sin(t * 2.5 + 0.5) * 0.08;
+      } else if (fa.timer < 2.0) {
+        const e = (fa.timer - 1.6) / 0.4;
+        player.headGroup.rotation.x = 0.12 + e * 0.26;
+        player.headGroup.rotation.y = 0;
+        player.leftArmPivot.rotation.x = -1.37 + e * 1.15;
+        player.rightArmPivot.rotation.x = -1.37 + e * 1.15;
+        player.leftArmPivot.rotation.z = -0.31 + e * 0.45;
+        player.rightArmPivot.rotation.z = 0.31 - e * 0.45;
+      } else {
+        const e = Math.min((fa.timer - 2.0) / 0.8, 1);
+        player.leftArmPivot.rotation.x = -0.22;
+        player.leftArmPivot.rotation.z = 0.14;
+        player.leftForePivot.rotation.x = -1.5 + e * 0.95;
+        player.rightArmPivot.rotation.x = -0.22;
+        player.rightArmPivot.rotation.z = -0.14;
+        player.rightForePivot.rotation.x = -1.5 + e * 0.95;
+        player.headGroup.rotation.x = 0.38 - e * 0.16;
+        player.headGroup.rotation.y = 0;
+      }
+
+      if (fa.timer >= fa.totalDuration) {
+        frustrationAnim = null;
+        resetArmPoses();
+        animState = 'idle';
+        if (!chess.isGameOver()) {
+          const turn = chess.turn();
+          animState = turn === 'w' ? 'white-think' : 'black-think';
+          animTimer = (0.8 + Math.random() * 0.6) / gameSpeed;
+          document.getElementById('turn-indicator').textContent = turn === 'w' ? "Fischer's turn" : "Carlsen's turn";
+        }
+      }
+    }
+
+    // ---- GAME STATE ----
+    let chess = new Chess();
+    let whiteTime = 600, blackTime = 600, baseTime = 600;
+    let timerRunning = false;
+    let activeClock = 'w';
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m}:${s.toString().padStart(2,'0')}`;
+    }
+
+    function updateClockDisplay() {
+      document.getElementById('side-time-white').textContent = formatTime(whiteTime);
+      document.getElementById('side-time-black').textContent = formatTime(blackTime);
+      document.getElementById('sc-white').classList.toggle('active', activeClock === 'w' && timerRunning);
+      document.getElementById('sc-black').classList.toggle('active', activeClock === 'b' && timerRunning);
+      document.getElementById('white-ind').textContent = activeClock === 'w' ? '●' : '';
+      document.getElementById('black-ind').textContent = activeClock === 'b' ? '●' : '';
+    }
+
+    function startTimer() { timerRunning = true; }
+    function stopTimer() { timerRunning = false; }
+
+    function switchClock() {
+      activeClock = activeClock === 'w' ? 'b' : 'w';
+      if (!chess.isGameOver() && gameStarted) startTimer();
+      else stopTimer();
+      updateClockDisplay();
+    }
+
+    let clockDisplayAccum = 0;
+    function tickClock(dt) {
+      if (!timerRunning) return;
+      if (activeClock === 'w') {
+        whiteTime = Math.max(0, whiteTime - dt);
+        if (whiteTime <= 0) { timerRunning = false; endGame('Carlsen wins on time!'); return; }
+      } else {
+        blackTime = Math.max(0, blackTime - dt);
+        if (blackTime <= 0) { timerRunning = false; endGame('Fischer wins on time!'); return; }
+      }
+      clockDisplayAccum += dt;
+      if (clockDisplayAccum >= 0.1) { clockDisplayAccum = 0; updateClockDisplay(); }
+    }
+
+    function endGame(reason) {
+      stopTimer();
+      document.getElementById('game-over-title').textContent = 'Game Over';
+      document.getElementById('game-over-reason').textContent = reason;
+      document.getElementById('game-over-overlay').classList.add('show');
+      document.getElementById('turn-indicator').textContent = reason;
+    }
+
+    document.getElementById('play-again-btn').addEventListener('click', () => {
+      document.getElementById('game-over-overlay').classList.remove('show');
+      resetGame();
+    });
+
+    document.querySelectorAll('.time-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        baseTime = parseInt(btn.dataset.min) * 60;
+        if (!gameStarted) { whiteTime = baseTime; blackTime = baseTime; updateClockDisplay(); }
+      });
+    });
+
+    function resetGame() {
+      chess = new Chess();
+      whiteTime = baseTime; blackTime = baseTime;
+      activeClock = 'w'; timerRunning = false;
+      clockPressAnim = null; moveAnim = null; frustrationAnim = null;
+      if (slidePieceMesh) { slidePieceGroup.remove(slidePieceMesh); slidePieceMesh = null; }
+      if (secondarySlideMesh) { slidePieceGroup.remove(secondarySlideMesh); secondarySlideMesh = null; }
+      capturedPiecesGroup.clear();
+      captureTraySlots.length = 0;
+      captureAnimation = null;
+      animState = 'idle';
+      moveQualities = [];
+      if (quality3DSprite) { quality3DGroup.remove(quality3DSprite); quality3DSprite.material.map.dispose(); quality3DSprite.material.dispose(); quality3DSprite = null; }
+      resetArmPoses();
+      whitePlayer.root.position.copy(whitePlayer.seatedPosition);
+      blackPlayer.root.position.copy(blackPlayer.seatedPosition);
+      handshakeAnim = null;
+      whitePlayer.handshakeStretch = false; blackPlayer.handshakeStretch = false;
+      whitePlayer.leftForePivot.scale.y = 1; blackPlayer.rightForePivot.scale.y = 1;
+      renderPiecesFromBoard();
+      render2DBoards();
+      updateMoveHistory();
+      updateClockDisplay();
+      startTimer();
+      beginHandshake();
+    }
+
+    document.getElementById('start-btn').addEventListener('click', () => {
+      if (gameStarted) return;
+      gameStarted = true;
+      document.getElementById('start-btn').disabled = true;
+      document.getElementById('start-btn').textContent = '✓ Game Started';
+      document.querySelectorAll('.time-btn').forEach(b => b.style.pointerEvents = 'none');
+      resetGame();
+    });
+
+    // ---- MOVE EXECUTION WITH FULL IK HAND-TO-PIECE SYNCHRONIZATION ----
+    function executeMove(move) {
+      if (!move) return;
+      const fromRow = 8 - parseInt(move.from[1]);
+      const fromCol = move.from.charCodeAt(0) - 97;
+      const toRow = 8 - parseInt(move.to[1]);
+      const toCol = move.to.charCodeAt(0) - 97;
+
+      const madeMove = chess.move(move);
+      if (!madeMove) return;
+
+      const quality = evaluateMoveQuality(madeMove);
+      moveQualities.push(quality);
+
+      // Keep captured piece visible on the board until the moving piece arrives to displace it
+      const isWhiteMove = madeMove.color === 'w';
+      const player = isWhiteMove ? whitePlayer : blackPlayer;
+      // Use right hand for White (closer to clock on +x side) and left hand for Black (closer to clock on +x side)
+      const isRightArm = isWhiteMove;
+
+      const fromKey = `${fromRow},${fromCol}`;
+      const srcMesh = pieceMap.get(fromKey);
+      if (srcMesh) {
+        piecesGroup.remove(srcMesh);
+        pieceMeshes = pieceMeshes.filter(p => p !== srcMesh);
+        pieceMap.delete(fromKey);
+      }
+
+      if (slidePieceMesh) slidePieceGroup.remove(slidePieceMesh);
+      if (secondarySlideMesh) { slidePieceGroup.remove(secondarySlideMesh); secondarySlideMesh = null; }
+
+      // Create the piece at its starting square while the hand reaches out to grab it
+      slidePieceMesh = createPieceMeshGroup(madeMove.piece, madeMove.color, fromRow, fromCol);
+      const fwp = boardToWorld(fromRow, fromCol);
+      const twp = boardToWorld(toRow, toCol);
+      slidePieceMesh.position.set(fwp.x, PIECE_BASE_Y, fwp.z);
+      slidePieceGroup.add(slidePieceMesh);
+
+      // Handle castling rook smoothly too
+      let rookData = null;
+      if (madeMove.flags === 'k' || madeMove.flags === 'q') {
+        const rRow = isWhiteMove ? 7 : 0;
+        const rFromCol = madeMove.flags === 'k' ? 7 : 0;
+        const rToCol = madeMove.flags === 'k' ? 5 : 3;
+        const rKey = `${rRow},${rFromCol}`;
+        const rMesh = pieceMap.get(rKey);
+        if (rMesh) {
+          piecesGroup.remove(rMesh);
+          pieceMeshes = pieceMeshes.filter(p => p !== rMesh);
+          pieceMap.delete(rKey);
+        }
+        secondarySlideMesh = createPieceMeshGroup('r', madeMove.color, rRow, rFromCol);
+        const rfwp = boardToWorld(rRow, rFromCol);
+        const rtwp = boardToWorld(rRow, rToCol);
+        secondarySlideMesh.position.set(rfwp.x, PIECE_BASE_Y, rfwp.z);
+        slidePieceGroup.add(secondarySlideMesh);
+        rookData = { mesh: secondarySlideMesh, fromX: rfwp.x, fromZ: rfwp.z, toX: rtwp.x, toZ: rtwp.z };
+      }
+
+      // Handle en passant capture square
+      let captureRow = toRow;
+      let captureCol = toCol;
+      if (madeMove.flags.includes('e')) {
+        captureRow = isWhiteMove ? toRow + 1 : toRow - 1;
+      }
+      const capKey = `${captureRow},${captureCol}`;
+      const capturedMesh = pieceMap.get(capKey) || null;
+
+      const graspOffsetY = PIECE_GRASP_HEIGHTS[madeMove.piece] || (0.7 * BOARD_SCALE);
+
+      moveAnim = {
+        phase: 'reach-pickup', // 'reach-pickup' -> 'move-piece' -> 'release'
+        progress: 0,
+        player,
+        isRightArm,
+        mesh: slidePieceMesh,
+        rookData,
+        capturedMesh,
+        capKey,
+        fromRow, fromCol,
+        toRow, toCol,
+        fromX: fwp.x, fromZ: fwp.z,
+        toX: twp.x, toZ: twp.z,
+        graspOffsetY,
+        isWhite: isWhiteMove,
+        madeMove,
+        quality,
+        uiUpdated: false
+      };
+
+      animState = 'move-sequence';
+      updateTurnIndicator();
+    }
+
+    // ---- CLOCK PRESS ANIMATION (Smooth IK Reach to Side Chess Clock) ----
+    function startClockPressAnimation() {
+      const isWhiteTurn = chess.turn() === 'w';
+      const justMovedIsWhite = !isWhiteTurn;
+      const player = justMovedIsWhite ? whitePlayer : blackPlayer;
+      const isRightArm = justMovedIsWhite; // White's right arm and Black's left arm are on the +x side where the clock sits
+      const buttonKey = justMovedIsWhite ? 'white' : 'black';
+
+      const btnWorld = new THREE.Vector3();
+      clockButtons[buttonKey].getWorldPosition(btnWorld);
+
+      clockPressAnim = {
+        player,
+        isRightArm,
+        buttonKey,
+        btnWorld,
+        progress: 0
+      };
+      animState = 'clock-press';
+    }
+
+    function updateTurnIndicator() {
+      if (chess.isGameOver()) return;
+      document.getElementById('turn-indicator').textContent = chess.turn() === 'w' ? "Fischer's turn" : "Carlsen's turn";
+    }
+
+    function updateMoveHistory() {
+      const history = chess.history({ verbose: true });
+      const moveListDiv = document.getElementById('move-list');
+      if (history.length === 0) {
+        moveListDiv.innerHTML = '<div style="color: #888; text-align: center; padding: 4px; font-style: italic;">No moves yet</div>';
+        return;
+      }
+      let html = '';
+      for (let i = 0; i < history.length; i += 2) {
+        const w = history[i], b = history[i+1];
+        const wq = moveQualities[i] ? qualityConfig[moveQualities[i]] : null;
+        const bq = moveQualities[i+1] ? qualityConfig[moveQualities[i+1]] : null;
+        html += `<div class="move-item">
+          <span class="move-number">${Math.floor(i/2)+1}.</span>
+          <span class="move-white" style="color:${wq ? wq.color : '#fff'}">${w ? w.san : ''}</span>
+          <span class="move-quality" style="color:${wq ? wq.color : '#fff'}">${wq ? wq.symbol : ''}</span>
+          <span class="move-black" style="color:${bq ? bq.color : '#ffd966'}">${b ? b.san : ''}</span>
+          <span class="move-quality" style="color:${bq ? bq.color : '#ffd966'}">${bq ? bq.symbol : ''}</span>
+        </div>`;
+      }
+      moveListDiv.innerHTML = html;
+      moveListDiv.scrollTop = moveListDiv.scrollHeight;
+    }
+
+    for (const id of ['white-elo', 'black-elo']) {
+      const slider = document.getElementById(id);
+      const output = document.getElementById(id + '-val');
+      const syncElo = () => { output.textContent = String(slider.value); };
+      slider.addEventListener('input', syncElo, { passive: true });
+      slider.addEventListener('change', syncElo, { passive: true });
+      slider.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+      slider.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
+      slider.addEventListener('pointerdown', e => e.stopPropagation());
+      slider.addEventListener('pointermove', e => { if (e.buttons) e.stopPropagation(); });
+    }
+
+    // ---- UI TOGGLE ----
+    document.getElementById('toggle-board-btn').addEventListener('click', () => {
+      const panel = document.getElementById('board-panel');
+      panel.classList.toggle('expanded');
+      document.getElementById('toggle-board-btn').textContent = panel.classList.contains('expanded') ? '⛶ Mini' : '⛶ Full';
+      render2DBoards();
+    });
+
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    let guiHidden = false;
+    sidebarToggle.addEventListener('click', () => {
+      guiHidden = !guiHidden;
+      document.getElementById('info').classList.toggle('hidden', guiHidden);
+      document.getElementById('side-clocks').classList.toggle('hidden', guiHidden);
+      document.getElementById('board-panel').classList.toggle('hidden', guiHidden);
+      sidebarToggle.classList.toggle('active', guiHidden);
+    });
+
+    // ---- SCENE DECOR: FLOOR, CHESS TABLE & LEGS ----
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(80, 80),
+      new THREE.MeshStandardMaterial({ color: 0x10121e, roughness: 0.9 })
+    );
+    ground.rotation.x = -Math.PI/2;
+    ground.position.y = FLOOR_Y;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const rug = new THREE.Mesh(
+      new THREE.BoxGeometry(18, 0.04, 22),
+      new THREE.MeshStandardMaterial({ color: 0x181c30, roughness: 0.95 })
+    );
+    rug.position.set(4.5, FLOOR_Y + 0.02, 4);
+    rug.receiveShadow = true;
+    scene.add(rug);
+
+    // Proper Chess Table whose top surface sits at y = 0 (supporting board + side clock)
+    const tableGroup = new THREE.Group();
+    scene.add(tableGroup);
+
+    const tableWoodMat = new THREE.MeshStandardMaterial({ color: 0x2a1b12, roughness: 0.45, metalness: 0.15 });
+    const tableTrimMat = new THREE.MeshStandardMaterial({ color: 0xb8942a, roughness: 0.35, metalness: 0.65 });
+
+    const tableTop = new THREE.Mesh(new THREE.BoxGeometry(11.6, 0.36, 9.6), tableWoodMat);
+    tableTop.position.set(4.4, -0.18, 4.0);
+    tableTop.receiveShadow = true;
+    tableTop.castShadow = true;
+    tableGroup.add(tableTop);
+
+    const tableEdgeTrim = new THREE.Mesh(new THREE.BoxGeometry(11.72, 0.10, 9.72), tableTrimMat);
+    tableEdgeTrim.position.set(4.4, -0.18, 4.0);
+    tableGroup.add(tableEdgeTrim);
+
+    const tableApron = new THREE.Mesh(new THREE.BoxGeometry(10.2, 0.42, 8.2), tableWoodMat);
+    tableApron.position.set(4.4, -0.55, 4.0);
+    tableApron.castShadow = true;
+    tableGroup.add(tableApron);
+
+    const tableLegH = Math.abs(FLOOR_Y);
+    const tableLegPositions = [
+      [-0.7, -0.1],
+      [ 9.5, -0.1],
+      [-0.7,  8.1],
+      [ 9.5,  8.1]
+    ];
+    for (const [tlx, tlz] of tableLegPositions) {
+      const tLeg = new THREE.Mesh(new THREE.BoxGeometry(0.45, tableLegH, 0.45), tableWoodMat);
+      tLeg.position.set(tlx, FLOOR_Y + tableLegH / 2, tlz);
+      tLeg.castShadow = true;
+      tLeg.receiveShadow = true;
+      tableGroup.add(tLeg);
+
+      const tFoot = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.14, 0.52), tableTrimMat);
+      tFoot.position.set(tlx, FLOOR_Y + 0.07, tlz);
+      tableGroup.add(tFoot);
+    }
+
+    // ---- INIT ----
+    renderPiecesFromBoard();
+    render2DBoards();
+    updateMoveHistory();
+    updateClockDisplay();
+
+    // ---- ANIMATION LOOP ----
+    const clock = new THREE.Clock();
+    const _handTargetVec = new THREE.Vector3();
+    const _lookTargetVec = new THREE.Vector3();
+
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.05);
+
+      if (gameStarted) {
+        if (animState === 'handshake') updateHandshake(dt);
+        if (animState === 'frustration') {
+          updateFrustrationAnim(dt);
+        }
+
+        // Animate captured pieces off the board into the visible side capture area.
+        if (captureAnimation) {
+          captureAnimation.progress = Math.min(1, captureAnimation.progress + dt * 1.8 * gameSpeed);
+          const cp = easeInOutCubic(captureAnimation.progress);
+          const arc = Math.sin(cp * Math.PI) * 0.85;
+          captureAnimation.mesh.position.set(
+            THREE.MathUtils.lerp(captureAnimation.from.x, captureAnimation.to.x, cp),
+            THREE.MathUtils.lerp(captureAnimation.from.y, captureAnimation.to.y, cp) + arc,
+            THREE.MathUtils.lerp(captureAnimation.from.z, captureAnimation.to.z, cp)
+          );
+          if (captureAnimation.progress >= 1) captureAnimation = null;
+        }
+
+        // ---- SYNCHRONIZED IK REACH -> PICKUP -> CARRY PIECE -> PLACE -> RELEASE ----
+        if (animState === 'move-sequence' && moveAnim) {
+          const ma = moveAnim;
+          const otherPlayer = ma.isWhite ? blackPlayer : whitePlayer;
+          smoothReturnToRest(otherPlayer, 0.1);
+
+          // Relax non-reaching arm on the active player
+          if (ma.isRightArm) {
+            ma.player.leftArmPivot.quaternion.slerp(_restQuatLShoulder, 0.15);
+            ma.player.leftForePivot.quaternion.slerp(_restQuatFore, 0.15);
+          } else {
+            ma.player.rightArmPivot.quaternion.slerp(_restQuatRShoulder, 0.15);
+            ma.player.rightForePivot.quaternion.slerp(_restQuatFore, 0.15);
+          }
+
+          if (ma.phase === 'reach-pickup') {
+            // Phase 1: Hand arcs smoothly from rest/thinking pose down onto the top of the source piece
+            ma.progress += dt * 2.5 * gameSpeed;
+            const p = Math.min(ma.progress, 1);
+            const e = easeInOutCubic(p);
+
+            // Slight forward torso lean when reaching across the board
+            ma.player.torso.rotation.x += ((0.06 + 0.07 * e) - ma.player.torso.rotation.x) * 0.2;
+
+            // Arc height so hand approaches piece cleanly from above without clipping neighboring pieces
+            const arcLift = Math.sin(e * Math.PI) * 0.55;
+            _handTargetVec.set(
+              ma.fromX,
+              PIECE_BASE_Y + ma.graspOffsetY + arcLift,
+              ma.fromZ
+            );
+
+            // Close fingers as hand arrives on the piece
+            const grip = p > 0.65 ? (p - 0.65) / 0.35 : 0;
+            movePlayerIntoReach(ma.player, _handTargetVec, 0.20);
+            reachHandToTarget(ma.player, ma.isRightArm, _handTargetVec, 0.42, grip);
+            aimHeadAtWorld(ma.player, _handTargetVec, 0.16);
+
+            if (p >= 1) {
+              ma.phase = 'move-piece';
+              ma.progress = 0;
+
+              // Trigger 2D board slide right as the player lifts the piece!
+              if (!ma.uiUpdated) {
+                ma.uiUpdated = true;
+                start2DSlide(ma.fromRow, ma.fromCol, ma.toRow, ma.toCol, ma.madeMove.piece, ma.madeMove.color, 520 / gameSpeed);
+              }
+            }
+          } else if (ma.phase === 'move-piece') {
+            // Phase 2: Lift piece slightly and transport smoothly to destination while hand stays locked onto piece!
+            ma.progress += dt * 1.95 * gameSpeed;
+            const p = Math.min(ma.progress, 1);
+            const e = easeInOutCubic(p);
+
+            const curX = ma.fromX + (ma.toX - ma.fromX) * e;
+            const curZ = ma.fromZ + (ma.toZ - ma.fromZ) * e;
+            // Knights hop slightly higher; sliding pieces lift smoothly over the board
+            const liftPeak = ma.madeMove.piece === 'n' ? 0.65 : 0.42;
+            const curY = PIECE_BASE_Y + Math.sin(e * Math.PI) * liftPeak;
+
+            // Move the 3D piece mesh
+            ma.mesh.position.set(curX, curY, curZ);
+
+            // If castling, slide the rook simultaneously
+            if (ma.rookData) {
+              const rx = ma.rookData.fromX + (ma.rookData.toX - ma.rookData.fromX) * e;
+              const rz = ma.rookData.fromZ + (ma.rookData.toZ - ma.rookData.fromZ) * e;
+              ma.rookData.mesh.position.set(rx, PIECE_BASE_Y + Math.sin(e * Math.PI) * 0.25, rz);
+            }
+
+            // Lift the captured piece away and carry it to the capture area beside the table.
+            if (ma.capturedMesh && p >= 0.72 && !ma.captureStarted) {
+              ma.captureStarted = true;
+              const captured = ma.capturedMesh;
+              const start = captured.position.clone();
+              piecesGroup.remove(captured);
+              capturedPiecesGroup.add(captured);
+              captured.position.copy(start);
+              pieceMeshes = pieceMeshes.filter(pm => pm !== captured);
+              pieceMap.delete(ma.capKey);
+              const slot = captureTraySlots.length;
+              const target = new THREE.Vector3(10.65 + (slot % 3) * 0.30, PIECE_BASE_Y, 3.0 + Math.floor(slot / 3) * 0.34);
+              captureTraySlots.push(target.clone());
+              captureAnimation = { mesh: captured, from: start, to: target, progress: 0 };
+              ma.capturedMesh = null;
+            }
+
+            // Lock hand directly to the top of the moving piece every single frame!
+            _handTargetVec.set(curX, curY + ma.graspOffsetY, curZ);
+            movePlayerIntoReach(ma.player, _handTargetVec, 0.22);
+            reachHandToTarget(ma.player, ma.isRightArm, _handTargetVec, 0.48, 1.0);
+            aimHeadAtWorld(ma.player, _handTargetVec, 0.18);
+
+            if (p >= 1) {
+              // Snap piece cleanly onto destination square
+              ma.mesh.position.set(ma.toX, PIECE_BASE_Y, ma.toZ);
+              render2DBoards();
+              updateMoveHistory();
+              showQualityIndicator(ma.quality);
+              show3DQualityBadge(ma.toRow, ma.toCol, ma.quality);
+
+              if (chess.isGameOver()) {
+                ma.phase = 'release';
+                ma.progress = 0;
+                setTimeout(() => {
+                  let reason = chess.isCheckmate() ? 'Checkmate!' : chess.isDraw() ? 'Draw.' : chess.isStalemate() ? 'Stalemate.' : 'Game over.';
+                  endGame(reason);
+                }, 700 / gameSpeed);
+              } else if (ma.quality === 'blunder' || ma.quality === 'mistake') {
+                // Clean up temporary slide meshes and trigger blunder frustration
+                if (slidePieceMesh) { slidePieceGroup.remove(slidePieceMesh); slidePieceMesh = null; }
+                if (secondarySlideMesh) { slidePieceGroup.remove(secondarySlideMesh); secondarySlideMesh = null; }
+                renderPiecesFromBoard();
+                const blunderer = ma.player;
+                moveAnim = null;
+                triggerFrustrationAnimation(blunderer);
+              } else {
+                // Transition smoothly from placing the piece directly toward pressing the side clock!
+                if (slidePieceMesh) { slidePieceGroup.remove(slidePieceMesh); slidePieceMesh = null; }
+                if (secondarySlideMesh) { slidePieceGroup.remove(secondarySlideMesh); secondarySlideMesh = null; }
+                renderPiecesFromBoard();
+                moveAnim = null;
+                stopTimer();
+                document.getElementById('turn-indicator').textContent =
+                  chess.turn() === 'w' ? "Fischer: Pressing clock..." : "Carlsen: Pressing clock...";
+                startClockPressAnimation();
+              }
+            }
+          } else if (ma.phase === 'release') {
+            // Game-ending move: open fingers, lift hand off piece, and return to rest
+            ma.progress += dt * 2.2 * gameSpeed;
+            const p = Math.min(ma.progress, 1);
+            if (p < 0.4) {
+              _handTargetVec.set(ma.toX, PIECE_BASE_Y + ma.graspOffsetY + 0.45 * (p / 0.4), ma.toZ);
+              reachHandToTarget(ma.player, ma.isRightArm, _handTargetVec, 0.35, 0.0);
+            } else {
+              smoothReturnToRest(ma.player, 0.16);
+            }
+            if (p >= 1) {
+              ma.player.root.position.copy(ma.player.seatedPosition);
+              ma.player.torso.rotation.x = 0.06;
+              if (slidePieceMesh) { slidePieceGroup.remove(slidePieceMesh); slidePieceMesh = null; }
+              if (secondarySlideMesh) { slidePieceGroup.remove(secondarySlideMesh); secondarySlideMesh = null; }
+              renderPiecesFromBoard();
+              moveAnim = null;
+              animState = 'idle';
+            }
+          }
+        }
+
+        // ---- SMOOTH IK CLOCK PRESS ON SIDE OF BOARD ----
+        if (animState === 'clock-press' && clockPressAnim) {
+          clockPressAnim.progress += dt * 2.1 * gameSpeed;
+          const p = Math.min(clockPressAnim.progress, 1);
+          const ca = clockPressAnim;
+
+          if (p < 0.45) {
+            const bodyLean = THREE.MathUtils.smoothstep(p, 0, 0.45);
+            ca.player.root.position.y += ((ca.player.seatedPosition.y + 0.48 * bodyLean) - ca.player.root.position.y) * 0.10;
+            ca.player.root.position.z += (((ca.player === whitePlayer ? ca.player.seatedPosition.z - 0.72 : ca.player.seatedPosition.z + 0.72) * bodyLean + ca.player.seatedPosition.z * (1 - bodyLean)) - ca.player.root.position.z) * 0.10;
+            // Arc hand from the destination square over to hover above the clock button
+            const e = easeInOutCubic(p / 0.45);
+            const arcY = 0.48 * Math.sin(e * Math.PI) + 0.14 * (1 - e);
+            _handTargetVec.set(ca.btnWorld.x, clockButtonBaseY[ca.buttonKey] + 0.08 + arcY, ca.btnWorld.z);
+            reachHandToTarget(ca.player, ca.isRightArm, _handTargetVec, 0.32, 0.1);
+            aimHeadAtWorld(ca.player, ca.btnWorld, 0.16);
+          } else if (p < 0.68) {
+            // Depress clock button cleanly
+            const e = (p - 0.45) / 0.23;
+            const pressDepth = Math.sin(e * Math.PI) * 0.09;
+            clockButtons[ca.buttonKey].position.y = clockButtonBaseY[ca.buttonKey] - pressDepth;
+            _handTargetVec.set(ca.btnWorld.x, clockButtonBaseY[ca.buttonKey] + 0.05 - pressDepth, ca.btnWorld.z);
+            reachHandToTarget(ca.player, ca.isRightArm, _handTargetVec, 0.65, 0.15);
+            aimHeadAtWorld(ca.player, ca.btnWorld, 0.16);
+          } else {
+            // Smoothly withdraw hand back to resting pose and look back at the board
+            clockButtons[ca.buttonKey].position.y = clockButtonBaseY[ca.buttonKey];
+            smoothReturnToRest(ca.player, 0.18);
+            _lookTargetVec.set(BOARD_CENTER.x, 0.5, BOARD_CENTER.z);
+            aimHeadAtWorld(ca.player, _lookTargetVec, 0.12);
+          }
+
+          if (p >= 1) {
+            ca.player.root.position.copy(ca.player.seatedPosition);
+            ca.player.torso.rotation.x = 0.06;
+            clockButtons[ca.buttonKey].position.y = clockButtonBaseY[ca.buttonKey];
+            clockPressAnim = null;
+            animState = 'idle';
+            switchClock();
+            if (!chess.isGameOver()) {
+              const turn = chess.turn();
+              animState = turn === 'w' ? 'white-think' : 'black-think';
+              const pieceCount = chess.board().flat().filter(Boolean).length;
+              const branching = chess.moves({ verbose: true }).length;
+              const complexPosition = branching >= 24 || (pieceCount >= 20 && branching >= 18);
+              animTimer = (complexPosition ? 3.2 + Math.random() * 2.8 : 1.1 + Math.random() * 1.0) / gameSpeed;
+              document.getElementById('turn-indicator').textContent = turn === 'w' ? "Fischer's turn" : "Carlsen's turn";
+            }
+          }
+        }
+
+        if (animState === 'white-think' || animState === 'black-think') {
+          animTimer -= dt * gameSpeed;
+          const isWhiteTurn = animState === 'white-think';
+          const player = isWhiteTurn ? whitePlayer : blackPlayer;
+          const otherPlayer = isWhiteTurn ? blackPlayer : whitePlayer;
+          const t = performance.now() * 0.0025 * gameSpeed;
+
+          applyThinkPoseSmooth(player, isWhiteTurn, 0.1);
+          smoothReturnToRest(otherPlayer, 0.1);
+          player.headGroup.rotation.z = Math.sin(t) * 0.06;
+          player.headGroup.rotation.x = 0.24 + Math.sin(t * 1.4) * 0.05;
+          player.headGroup.rotation.y = Math.sin(t * 0.8) * 0.08;
+
+          if (animTimer <= 0) {
+            const moves = chess.moves({ verbose: true });
+            if (moves.length > 0) {
+              const chosen = chooseEloMove(chess, isWhiteTurn ? 'w' : 'b');
+              executeMove(chosen);
+            }
+          }
+        }
+
+        if (animState === 'idle') {
+          const t = performance.now() * 0.001 * gameSpeed;
+          smoothReturnToRest(whitePlayer, 0.12);
+          smoothReturnToRest(blackPlayer, 0.12);
+          whitePlayer.headGroup.rotation.y = Math.sin(t * 0.4) * 0.04;
+          blackPlayer.headGroup.rotation.y = Math.sin(t * 0.4 + 1.2) * 0.04;
+        }
+      }
+
+      if (gameStarted) tickClock(dt);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      render2DBoards();
+    });
+
+    renderer.domElement.style.cursor = 'grab';
+  </script>
+</body>
+</html>
